@@ -40,7 +40,7 @@ import {
    STORAGE
 ================================ */
 
-const STORAGE_KEY = "utility-tracker-v2";
+const STORAGE_KEY = "utility-tracker-v3";
 const MONTH_WINDOW = 9;
 
 /* ================================
@@ -88,91 +88,115 @@ const FONT_MONO =
   "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace";
 
 /* ================================
-   HELPERS
+   GENERAL HELPERS
 ================================ */
 
 function uid() {
-  return Math.random().toString(36).slice(2, 10);
+  return Math.random()
+    .toString(36)
+    .slice(2, 10);
 }
 
-function fmtMoney(n, currency = "¥") {
-  const value = Number.isFinite(Number(n))
-    ? Number(n)
-    : 0;
+function fmtMoney(
+  n,
+  currency = "¥"
+) {
+  const value =
+    Number.isFinite(Number(n))
+      ? Number(n)
+      : 0;
 
-  const sign = value < 0 ? "-" : "";
+  const sign =
+    value < 0 ? "-" : "";
 
   return (
     sign +
     currency +
-    Math.abs(value).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
+    Math.abs(value).toLocaleString(
+      undefined,
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }
+    )
   );
 }
 
-function fmtNum(n, digits = 1) {
-  const value = Number.isFinite(Number(n))
-    ? Number(n)
-    : 0;
+function fmtNum(
+  n,
+  digits = 1
+) {
+  const value =
+    Number.isFinite(Number(n))
+      ? Number(n)
+      : 0;
 
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: digits,
-  });
+  return value.toLocaleString(
+    undefined,
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits:
+        digits,
+    }
+  );
 }
 
-function monthLabel(monthKey) {
+function monthLabel(
+  monthKey
+) {
   if (!monthKey) return "";
 
-  const [year, month] = monthKey
-    .split("-")
-    .map(Number);
+  const [year, month] =
+    monthKey
+      .split("-")
+      .map(Number);
 
   return new Date(
     year,
     month - 1,
     1
-  ).toLocaleDateString(undefined, {
-    month: "short",
-    year: "2-digit",
-  });
+  ).toLocaleDateString(
+    undefined,
+    {
+      month: "short",
+      year: "2-digit",
+    }
+  );
 }
 
 function todayISO() {
-  const date = new Date();
+  const date =
+    new Date();
 
-  const year = date.getFullYear();
-  const month = String(
-    date.getMonth() + 1
-  ).padStart(2, "0");
+  const year =
+    date.getFullYear();
 
-  const day = String(
-    date.getDate()
-  ).padStart(2, "0");
+  const month =
+    String(
+      date.getMonth() + 1
+    ).padStart(2, "0");
+
+  const day =
+    String(
+      date.getDate()
+    ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
 /* ================================
-   TIER CALCULATION
+   FORWARD TIER CALCULATION
+
+   usage -> RMB cost
 ================================ */
-
-/*
-  All three utility tariffs are
-  annual cumulative tiers.
-
-  baseline = usage already recorded
-  earlier in the same calendar year.
-*/
 
 function calcTierCost(
   usage,
   tiers,
   baseline = 0
 ) {
-  let remaining = Number(usage) || 0;
+  let remaining =
+    Number(usage) || 0;
 
   if (
     remaining <= 0 ||
@@ -183,7 +207,8 @@ function calcTierCost(
   }
 
   let cost = 0;
-  let cursor = baseline;
+  let cursor =
+    Number(baseline) || 0;
 
   for (const tier of tiers) {
     const cap =
@@ -193,36 +218,54 @@ function calcTierCost(
         ? Infinity
         : Number(tier.upTo);
 
-    if (cursor >= cap) continue;
+    if (cursor >= cap) {
+      continue;
+    }
 
-    const available = cap - cursor;
+    const rate =
+      Number(tier.rate || 0);
 
-    const amount = Math.min(
-      remaining,
-      available
-    );
+    if (rate <= 0) {
+      continue;
+    }
+
+    const available =
+      cap - cursor;
+
+    const amount =
+      Math.min(
+        remaining,
+        available
+      );
 
     if (amount > 0) {
       cost +=
-        amount *
-        Number(tier.rate || 0);
+        amount * rate;
 
       cursor += amount;
       remaining -= amount;
     }
 
-    if (remaining <= 1e-9) break;
+    if (remaining <= 1e-9) {
+      break;
+    }
   }
 
   return cost;
 }
+
+/* ================================
+   TIER BREAKDOWN
+================================ */
 
 function tierBreakdown(
   usage,
   tiers,
   baseline = 0
 ) {
-  let remaining = Number(usage) || 0;
+  let remaining =
+    Number(usage) || 0;
+
   const rows = [];
 
   if (
@@ -233,7 +276,8 @@ function tierBreakdown(
     return rows;
   }
 
-  let cursor = baseline;
+  let cursor =
+    Number(baseline) || 0;
 
   for (const tier of tiers) {
     const cap =
@@ -243,33 +287,56 @@ function tierBreakdown(
         ? Infinity
         : Number(tier.upTo);
 
-    if (cursor >= cap) continue;
+    if (cursor >= cap) {
+      continue;
+    }
 
-    const available = cap - cursor;
+    const rate =
+      Number(tier.rate || 0);
 
-    const amount = Math.min(
-      remaining,
-      available
-    );
+    if (rate <= 0) {
+      continue;
+    }
+
+    const available =
+      cap - cursor;
+
+    const amount =
+      Math.min(
+        remaining,
+        available
+      );
 
     if (amount > 0) {
       rows.push({
         amount,
-        rate: Number(tier.rate || 0),
+        rate,
         cost:
-          amount *
-          Number(tier.rate || 0),
+          amount * rate,
       });
     }
 
     cursor += amount;
     remaining -= amount;
 
-    if (remaining <= 1e-9) break;
+    if (remaining <= 1e-9) {
+      break;
+    }
   }
 
   return rows;
 }
+
+/* ================================
+   REVERSE TIER CALCULATION
+
+   RMB cost -> estimated usage
+
+   Used automatically for:
+   - Electricity
+   - Water
+================================ */
+
 function usageFromCost(
   cost,
   tiers,
@@ -287,7 +354,9 @@ function usageFromCost(
   }
 
   let usage = 0;
-  let cursor = baseline;
+
+  let cursor =
+    Number(baseline) || 0;
 
   for (const tier of tiers) {
     const cap =
@@ -324,20 +393,26 @@ function usageFromCost(
         remainingCost / rate;
 
       usage += amount;
+
       remainingCost = 0;
+
       break;
     }
 
     usage += availableUsage;
+
     remainingCost -=
       availableCost;
-    cursor += availableUsage;
+
+    cursor +=
+      availableUsage;
   }
 
   return usage;
 }
+
 /* ================================
-   DEFAULT APARTMENT DATA
+   DEFAULT DATA
 ================================ */
 
 function defaultData() {
@@ -351,83 +426,166 @@ function defaultData() {
     ],
 
     utilities: [
-     {
-  id: "elec",
-  name: "Electricity",
-  unit: "kWh",
-  startingAnnualUsage: 0,
-
-  tiers: [
-    {
-      upTo: 2760,
-      rate: 0.5283,
-    },
-    {
-      upTo: 4800,
-      rate: 0.5783,
-    },
-    {
-      upTo: null,
-      rate: 0.8283,
-    },
-  ],
-},
       {
-  id: "water",
-  name: "Tap Water",
-  unit: "m³",
-  startingAnnualUsage: 0,
+        id: "elec",
+        name: "Electricity",
+        unit: "kWh",
 
-  tiers: [
-    {
-      upTo: 216,
-      rate: 2.91,
-    },
-    {
-      upTo: 300,
-      rate: 3.71,
-    },
-    {
-      upTo: null,
-      rate: 6.11,
-    },
-  ],
-},
-     {
-  id: "gas",
-  name: "Natural Pipe Gas",
-  unit: "m³",
-  startingAnnualUsage: 0,
+        autoUsage: true,
 
-  tiers: [
-    {
-      upTo: 400,
-      rate: 2.99,
-    },
-    {
-      upTo: 1000,
-      rate: 3.59,
-    },
-    {
-      upTo: null,
-      rate: 4.49,
-    },
-  ],
-},
+        startingAnnualUsage: 0,
+
+        tiers: [
+          {
+            upTo: 2760,
+            rate: 0.5283,
+          },
+          {
+            upTo: 4800,
+            rate: 0.5783,
+          },
+          {
+            upTo: null,
+            rate: 0.8283,
+          },
+        ],
+      },
+
+      {
+        id: "water",
+        name: "Tap Water",
+        unit: "m³",
+
+        autoUsage: true,
+
+        startingAnnualUsage: 0,
+
+        tiers: [
+          {
+            upTo: 216,
+            rate: 2.91,
+          },
+          {
+            upTo: 300,
+            rate: 3.71,
+          },
+          {
+            upTo: null,
+            rate: 6.11,
+          },
+        ],
+      },
+
+      {
+        id: "gas",
+        name: "Natural Pipe Gas",
+        unit: "m³",
+
+        autoUsage: false,
+
+        startingAnnualUsage: 0,
+
+        tiers: [
+          {
+            upTo: 400,
+            rate: 2.99,
+          },
+          {
+            upTo: 1000,
+            rate: 3.59,
+          },
+          {
+            upTo: null,
+            rate: 4.49,
+          },
+        ],
+      },
+    ],
 
     logs: [],
   };
 }
 
 /* ================================
-   LOCAL STORAGE
+   DATA MIGRATION
 ================================ */
 
-/*
-  GitHub Pages is a static website,
-  so data is stored locally in the
-  browser on this device.
-*/
+function normalizeData(
+  parsed
+) {
+  const base =
+    defaultData();
+
+  const utilities =
+    Array.isArray(
+      parsed?.utilities
+    )
+      ? parsed.utilities.map(
+          (utility) => {
+            const fallback =
+              base.utilities.find(
+                (u) =>
+                  u.id ===
+                  utility.id
+              );
+
+            return {
+              ...fallback,
+              ...utility,
+
+              autoUsage:
+                utility.autoUsage ??
+                fallback?.autoUsage ??
+                false,
+
+              startingAnnualUsage:
+                Number(
+                  utility.startingAnnualUsage ??
+                    fallback?.startingAnnualUsage ??
+                    0
+                ),
+
+              tiers:
+                Array.isArray(
+                  utility.tiers
+                )
+                  ? utility.tiers
+                  : fallback?.tiers ||
+                    [],
+            };
+          }
+        )
+      : base.utilities;
+
+  return {
+    ...base,
+    ...parsed,
+
+    currency:
+      parsed?.currency ||
+      base.currency,
+
+    roommates:
+      Array.isArray(
+        parsed?.roommates
+      )
+        ? parsed.roommates
+        : base.roommates,
+
+    utilities,
+
+    logs:
+      Array.isArray(
+        parsed?.logs
+      )
+        ? parsed.logs
+        : [],
+  };
+}
+
+/* ================================
+   LOCAL STORAGE
+================================ */
 
 function loadData() {
   try {
@@ -440,31 +598,12 @@ function loadData() {
       return defaultData();
     }
 
-    const parsed = JSON.parse(saved);
+    const parsed =
+      JSON.parse(saved);
 
-    return {
-      ...defaultData(),
-      ...parsed,
-
-      utilities:
-        Array.isArray(
-          parsed.utilities
-        )
-          ? parsed.utilities
-          : defaultData().utilities,
-
-      roommates:
-        Array.isArray(
-          parsed.roommates
-        )
-          ? parsed.roommates
-          : defaultData().roommates,
-
-      logs:
-        Array.isArray(parsed.logs)
-          ? parsed.logs
-          : [],
-    };
+    return normalizeData(
+      parsed
+    );
   } catch (error) {
     console.error(
       "Could not load utility data:",
@@ -497,7 +636,9 @@ function saveData(data) {
    UTILITY ICON
 ================================ */
 
-function utilityIcon(name = "") {
+function utilityIcon(
+  name = ""
+) {
   const lower =
     name.toLowerCase();
 
@@ -508,21 +649,29 @@ function utilityIcon(name = "") {
     return Zap;
   }
 
-  if (lower.includes("water")) {
+  if (
+    lower.includes("water")
+  ) {
     return Droplet;
   }
 
-  if (lower.includes("gas")) {
+  if (
+    lower.includes("gas")
+  ) {
     return Gauge;
   }
 
   return Gauge;
 }
 /* ================================
-   BASIC UI COMPONENTS
+   SHARED UI COMPONENTS
 ================================ */
 
-function Field({ label, children, hint }) {
+function Field({
+  label,
+  children,
+  hint,
+}) {
   return (
     <label
       style={{
@@ -548,9 +697,10 @@ function Field({ label, children, hint }) {
         <div
           style={{
             fontFamily: FONT_HEAD,
-            fontSize: 12,
+            fontSize: 11,
             color: C.inkFaint,
-            marginTop: 4,
+            marginTop: 5,
+            lineHeight: 1.5,
           }}
         >
           {hint}
@@ -580,16 +730,33 @@ const selectStyle = {
   fontWeight: 600,
 };
 
+const ghostAddStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  background: C.card,
+  border: `1.5px dashed ${C.border}`,
+  borderRadius: 14,
+  padding: "10px 14px",
+  fontFamily: FONT_HEAD,
+  fontWeight: 600,
+  fontSize: 13,
+  color: C.inkSoft,
+  cursor: "pointer",
+};
+
 function IconButton({
   onClick,
   children,
   title,
-  danger,
+  danger = false,
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      type="button"
       style={{
         border: "none",
         background: danger
@@ -604,6 +771,7 @@ function IconButton({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
+        flexShrink: 0,
       }}
     >
       {children}
@@ -614,13 +782,14 @@ function IconButton({
 function PrimaryButton({
   onClick,
   children,
-  disabled,
-  full,
+  disabled = false,
+  full = false,
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      type="button"
       style={{
         background: disabled
           ? C.inkFaint
@@ -646,7 +815,10 @@ function PrimaryButton({
   );
 }
 
-function Card({ children, style }) {
+function Card({
+  children,
+  style,
+}) {
   return (
     <div
       style={{
@@ -662,7 +834,9 @@ function Card({ children, style }) {
   );
 }
 
-function EmptyState({ text }) {
+function EmptyState({
+  text,
+}) {
   return (
     <div
       style={{
@@ -671,10 +845,12 @@ function EmptyState({ text }) {
         fontSize: 13,
         color: C.inkFaint,
         padding: 18,
-        background: C.primaryPale,
+        background:
+          C.primaryPale,
         borderRadius: 18,
         margin: "10px 0",
         textAlign: "center",
+        lineHeight: 1.5,
       }}
     >
       {text}
@@ -682,7 +858,9 @@ function EmptyState({ text }) {
   );
 }
 
-function SectionTitle({ children }) {
+function SectionTitle({
+  children,
+}) {
   return (
     <div
       style={{
@@ -698,8 +876,79 @@ function SectionTitle({ children }) {
   );
 }
 
+function MiniStat({
+  label,
+  value,
+  tone = "default",
+}) {
+  let background =
+    C.cardTint;
+
+  let color =
+    C.ink;
+
+  if (tone === "mint") {
+    background =
+      C.mintPale;
+    color =
+      C.mint;
+  }
+
+  if (tone === "coral") {
+    background =
+      C.coralPale;
+    color =
+      C.coral;
+  }
+
+  if (tone === "amber") {
+    background =
+      C.amberPale;
+    color =
+      C.amber;
+  }
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minWidth: 0,
+        padding: "11px 12px",
+        borderRadius: 15,
+        background,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: FONT_HEAD,
+          fontSize: 10,
+          fontWeight: 700,
+          color: C.inkFaint,
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontFamily: FONT_MONO,
+          fontSize: 13,
+          fontWeight: 700,
+          color,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 /* ================================
-   UTILITY METER CARD
+   METER CARD
 ================================ */
 
 function MeterCard({
@@ -708,27 +957,33 @@ function MeterCard({
   currency,
 }) {
   const Icon =
-    utilityIcon(utility.name);
+    utilityIcon(
+      utility.name
+    );
 
-  const status = totals.status;
+  const status =
+    totals.status;
 
   const tone =
     status === "red"
       ? {
           text: C.coral,
           bg: C.coralPale,
-          label: "balance owing",
+          label:
+            "balance owing",
         }
       : status === "amber"
       ? {
           text: C.amber,
           bg: C.amberPale,
-          label: "running low",
+          label:
+            "running low",
         }
       : {
           text: C.mint,
           bg: C.mintPale,
-          label: "balance ok",
+          label:
+            "balance ok",
         };
 
   return (
@@ -744,34 +999,47 @@ function MeterCard({
           display: "flex",
           justifyContent:
             "space-between",
-          alignItems: "flex-start",
+          alignItems:
+            "flex-start",
+          gap: 12,
         }}
       >
         <div
           style={{
             display: "flex",
             gap: 10,
-            alignItems: "center",
+            alignItems:
+              "center",
+            minWidth: 0,
           }}
         >
           <div
             style={{
-              background: C.white,
+              background:
+                C.white,
               borderRadius: 14,
               padding: 9,
               display: "flex",
+              flexShrink: 0,
             }}
           >
             <Icon
               size={18}
-              color={tone.text}
+              color={
+                tone.text
+              }
             />
           </div>
 
-          <div>
+          <div
+            style={{
+              minWidth: 0,
+            }}
+          >
             <div
               style={{
-                fontFamily: FONT_HEAD,
+                fontFamily:
+                  FONT_HEAD,
                 fontWeight: 700,
                 fontSize: 15,
                 color: C.ink,
@@ -782,14 +1050,17 @@ function MeterCard({
 
             <div
               style={{
-                fontFamily: FONT_MONO,
-                fontSize: 11,
-                color: C.inkSoft,
+                fontFamily:
+                  FONT_MONO,
+                fontSize: 10,
+                color:
+                  C.inkSoft,
+                marginTop: 2,
               }}
             >
               {totals.lastDate
                 ? `updated ${totals.lastDate}`
-                : "no logs yet"}
+                : "no records yet"}
             </div>
           </div>
         </div>
@@ -797,14 +1068,17 @@ function MeterCard({
         <div
           style={{
             textAlign: "right",
+            flexShrink: 0,
           }}
         >
           <div
             style={{
-              fontFamily: FONT_MONO,
+              fontFamily:
+                FONT_MONO,
               fontWeight: 700,
-              fontSize: 21,
-              color: tone.text,
+              fontSize: 20,
+              color:
+                tone.text,
             }}
           >
             {fmtMoney(
@@ -815,10 +1089,12 @@ function MeterCard({
 
           <div
             style={{
-              fontFamily: FONT_HEAD,
+              fontFamily:
+                FONT_HEAD,
               fontSize: 10,
               fontWeight: 700,
-              color: tone.text,
+              color:
+                tone.text,
               marginTop: 2,
             }}
           >
@@ -830,43 +1106,53 @@ function MeterCard({
       <div
         style={{
           display: "flex",
-          justifyContent:
-            "space-between",
-          marginTop: 12,
+          gap: 8,
+          marginTop: 14,
         }}
       >
-        <span
-          style={{
-            fontFamily: FONT_MONO,
-            fontSize: 11,
-            color: C.inkSoft,
-          }}
-        >
-          topped up{" "}
-          {fmtMoney(
+        <MiniStat
+          label="TOPPED UP"
+          value={fmtMoney(
             totals.topupSum,
             currency
           )}
-        </span>
+          tone="mint"
+        />
 
-        <span
-          style={{
-            fontFamily: FONT_MONO,
-            fontSize: 11,
-            color: C.inkSoft,
-          }}
-        >
-          consumed{" "}
-          {fmtMoney(
+        <MiniStat
+          label="CONSUMED"
+          value={fmtMoney(
             totals.costSum,
             currency
           )}
-        </span>
+          tone="coral"
+        />
       </div>
+
+      {totals.usageSum > 0 && (
+        <div
+          style={{
+            marginTop: 9,
+            fontFamily:
+              FONT_MONO,
+            fontSize: 11,
+            color:
+              C.inkSoft,
+          }}
+        >
+          Tracked usage:{" "}
+          <strong>
+            {fmtNum(
+              totals.usageSum,
+              1
+            )}{" "}
+            {utility.unit}
+          </strong>
+        </div>
+      )}
     </Card>
   );
 }
-
 /* ================================
    HOME / DASHBOARD
 ================================ */
@@ -897,7 +1183,7 @@ function Dashboard({
             fontWeight: 600,
           }}
         >
-          combined balance
+          combined prepaid balance
         </div>
 
         <div
@@ -906,6 +1192,7 @@ function Dashboard({
             fontSize: 38,
             fontWeight: 700,
             lineHeight: 1.15,
+            marginTop: 2,
           }}
         >
           {fmtMoney(
@@ -918,21 +1205,22 @@ function Dashboard({
           style={{
             fontFamily: FONT_HEAD,
             fontSize: 12,
-            opacity: 0.8,
-            marginTop: 4,
+            opacity: 0.82,
+            marginTop: 6,
+            lineHeight: 1.4,
           }}
         >
-          across {data.utilities.length}{" "}
-          {data.utilities.length === 1
-            ? "utility"
-            : "utilities"}{" "}
-          · shared with{" "}
-          {data.roommates.length} people
+          Electricity, water and gas
+          balances in one place.
         </div>
       </div>
 
+      <SectionTitle>
+        Utilities
+      </SectionTitle>
+
       {perUtility.length === 0 && (
-        <EmptyState text="No utilities set up yet — add one in Settings." />
+        <EmptyState text="No utilities are set up yet. You can add them in Settings." />
       )}
 
       {perUtility.map((row) => (
@@ -946,7 +1234,7 @@ function Dashboard({
 
       <div
         style={{
-          marginTop: 22,
+          marginTop: 24,
         }}
       >
         <SectionTitle>
@@ -954,18 +1242,727 @@ function Dashboard({
         </SectionTitle>
 
         {recent.length === 0 && (
-          <EmptyState text="Nothing logged yet — tap + to log your first balance." />
+          <EmptyState text="No records yet. Tap the + button to enter your first prepaid balance." />
         )}
 
-        {recent.map((log) => (
-          <div
-            key={log.id}
+        {recent.map((log) => {
+          const Icon =
+            utilityIcon(
+              log.utilityName
+            );
+
+          return (
+            <Card
+              key={log.id}
+              style={{
+                marginBottom: 10,
+                padding: 15,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems:
+                    "flex-start",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 12,
+                      background:
+                        C.primaryPale,
+                      display: "flex",
+                      alignItems:
+                        "center",
+                      justifyContent:
+                        "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon
+                      size={17}
+                      color={
+                        C.primaryDeep
+                      }
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_HEAD,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        color: C.ink,
+                      }}
+                    >
+                      {
+                        log.utilityName
+                      }
+                    </div>
+
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_MONO,
+                        fontSize: 10,
+                        color:
+                          C.inkFaint,
+                        marginTop: 2,
+                      }}
+                    >
+                      {log.date}
+                    </div>
+                  </div>
+                </div>
+
+                {log.topupAmount >
+                  0 && (
+                  <div
+                    style={{
+                      fontFamily:
+                        FONT_MONO,
+                      fontWeight: 700,
+                      fontSize: 12,
+                      color: C.mint,
+                      flexShrink: 0,
+                    }}
+                  >
+                    +
+                    {fmtMoney(
+                      log.topupAmount,
+                      currency
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 12,
+                  display: "flex",
+                  gap: 8,
+                }}
+              >
+                <MiniStat
+                  label="BEFORE"
+                  value={fmtMoney(
+                    log.currentBalance,
+                    currency
+                  )}
+                />
+
+                <MiniStat
+                  label="AFTER"
+                  value={fmtMoney(
+                    log.balanceAfter,
+                    currency
+                  )}
+                  tone="mint"
+                />
+              </div>
+
+              {log.cost > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      "space-between",
+                    alignItems:
+                      "center",
+                    gap: 10,
+                    marginTop: 10,
+                    paddingTop: 10,
+                    borderTop: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily:
+                        FONT_HEAD,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color:
+                        C.inkSoft,
+                    }}
+                  >
+                    Since previous
+                    checkpoint
+                  </div>
+
+                  <div
+                    style={{
+                      textAlign:
+                        "right",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_MONO,
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color:
+                          C.coral,
+                      }}
+                    >
+                      {fmtMoney(
+                        log.cost,
+                        currency
+                      )}
+                    </div>
+
+                    {log.usage !=
+                      null && (
+                      <div
+                        style={{
+                          fontFamily:
+                            FONT_MONO,
+                          fontSize: 10,
+                          color:
+                            C.inkSoft,
+                          marginTop: 2,
+                        }}
+                      >
+                        {log.usageSource ===
+                        "estimated"
+                          ? "~"
+                          : ""}
+                        {fmtNum(
+                          log.usage,
+                          1
+                        )}{" "}
+                        {log.unit}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {log.note && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontFamily:
+                      FONT_HEAD,
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    color:
+                      C.inkFaint,
+                  }}
+                >
+                  {log.note}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card
+        style={{
+          marginTop: 22,
+          background:
+            C.cardTint,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_HEAD,
+            fontWeight: 700,
+            fontSize: 12,
+            color: C.primaryDeep,
+            marginBottom: 5,
+          }}
+        >
+          How physical usage works
+        </div>
+
+        <div
+          style={{
+            fontFamily: FONT_HEAD,
+            fontSize: 11,
+            lineHeight: 1.55,
+            color: C.inkSoft,
+          }}
+        >
+          Electricity and water usage
+          are estimated automatically
+          from the RMB consumed and
+          your annual tariff tier.
+          Gas usage is entered manually
+          from the meter.
+        </div>
+      </Card>
+    </div>
+  );
+}
+/* ================================
+   ADD ENTRY
+================================ */
+
+function AddEntry({
+  data,
+  onSave,
+  onClose,
+}) {
+  const [utilityId, setUtilityId] =
+    useState(
+      data.utilities[0]?.id || ""
+    );
+
+  const [date, setDate] =
+    useState(todayISO());
+
+  const [currentBalance, setCurrentBalance] =
+    useState("");
+
+  const [topupAmount, setTopupAmount] =
+    useState("");
+
+  const [usage, setUsage] =
+    useState("");
+
+  const [person, setPerson] =
+    useState(
+      data.roommates[0] || "You"
+    );
+
+  const [note, setNote] =
+    useState("");
+
+  const utility =
+    data.utilities.find(
+      (u) => u.id === utilityId
+    );
+
+  const utilityLogs =
+    useMemo(() => {
+      return data.logs
+        .filter(
+          (log) =>
+            log.utilityId === utilityId
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.date) -
+            new Date(b.date)
+        );
+    }, [
+      data.logs,
+      utilityId,
+    ]);
+
+  const previousLog =
+    utilityLogs.length > 0
+      ? utilityLogs[
+          utilityLogs.length - 1
+        ]
+      : null;
+
+  const expectedPreviousBalance =
+    previousLog
+      ? Number(
+          previousLog.balanceAfter || 0
+        )
+      : null;
+
+  const cb =
+    Number(
+      currentBalance || 0
+    );
+
+  const top =
+    Number(
+      topupAmount || 0
+    );
+
+  const balanceAfter =
+    cb + top;
+
+  const hasPreviousLog =
+    previousLog !== null;
+
+  const rawDifference =
+    hasPreviousLog
+      ? expectedPreviousBalance - cb
+      : 0;
+
+  const impliedCost =
+    hasPreviousLog
+      ? Math.max(
+          0,
+          rawDifference
+        )
+      : 0;
+
+  const isAutoUsage =
+    utility?.autoUsage === true;
+
+  /* ================================
+     YEAR BASELINE
+  ================================ */
+
+  const yearBaseline =
+    useMemo(() => {
+      if (!utility) {
+        return 0;
+      }
+
+      const year =
+        (date || "").slice(
+          0,
+          4
+        );
+
+      const currentYear =
+        String(
+          new Date().getFullYear()
+        );
+
+      const startingUsage =
+        year === currentYear
+          ? Number(
+              utility.startingAnnualUsage ||
+                0
+            )
+          : 0;
+
+      const trackedUsage =
+        data.logs
+          .filter(
+            (log) =>
+              log.utilityId ===
+                utilityId &&
+              log.usage != null &&
+              (log.date || "").slice(
+                0,
+                4
+              ) === year
+          )
+          .reduce(
+            (sum, log) =>
+              sum +
+              Number(
+                log.usage || 0
+              ),
+            0
+          );
+
+      return (
+        startingUsage +
+        trackedUsage
+      );
+    }, [
+      data.logs,
+      utilityId,
+      date,
+      utility,
+    ]);
+
+  /* ================================
+     AUTO USAGE
+
+     Electricity + water:
+     RMB consumed -> physical usage
+  ================================ */
+
+  const calculatedUsage =
+    isAutoUsage &&
+    impliedCost > 0 &&
+    utility
+      ? usageFromCost(
+          impliedCost,
+          utility.tiers,
+          yearBaseline
+        )
+      : null;
+
+  const effectiveUsage =
+    isAutoUsage
+      ? calculatedUsage
+      : usage === ""
+      ? null
+      : Number(usage);
+
+  const tierEstimate =
+    utility &&
+    effectiveUsage != null &&
+    effectiveUsage > 0
+      ? calcTierCost(
+          effectiveUsage,
+          utility.tiers,
+          yearBaseline
+        )
+      : 0;
+
+  const tierRows =
+    utility &&
+    effectiveUsage != null &&
+    effectiveUsage > 0
+      ? tierBreakdown(
+          effectiveUsage,
+          utility.tiers,
+          yearBaseline
+        )
+      : [];
+
+  /* ================================
+     SAVE
+  ================================ */
+
+  function handleSave() {
+    if (!utility) {
+      return;
+    }
+
+    if (
+      currentBalance === "" ||
+      Number.isNaN(cb) ||
+      cb < 0
+    ) {
+      return;
+    }
+
+    if (
+      topupAmount !== "" &&
+      (
+        Number.isNaN(top) ||
+        top < 0
+      )
+    ) {
+      return;
+    }
+
+    if (
+      !isAutoUsage &&
+      usage !== "" &&
+      (
+        Number.isNaN(
+          Number(usage)
+        ) ||
+        Number(usage) < 0
+      )
+    ) {
+      return;
+    }
+
+    const record = {
+      id: uid(),
+
+      utilityId:
+        utility.id,
+
+      utilityName:
+        utility.name,
+
+      unit:
+        utility.unit,
+
+      date,
+
+      month:
+        date.slice(0, 7),
+
+      currentBalance:
+        cb,
+
+      topupAmount:
+        top,
+
+      balanceAfter,
+
+      cost:
+        impliedCost,
+
+      usage:
+        effectiveUsage,
+
+      usageSource:
+        isAutoUsage
+          ? "estimated"
+          : effectiveUsage != null
+          ? "meter"
+          : null,
+
+      person:
+        top > 0
+          ? person
+          : null,
+
+      note:
+        note.trim(),
+
+      previousCheckpointDate:
+        previousLog?.date ||
+        null,
+
+      previousBalanceAfter:
+        hasPreviousLog
+          ? expectedPreviousBalance
+          : null,
+    };
+
+    onSave(record);
+
+    onClose();
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background:
+          "rgba(58,53,80,0.24)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent:
+          "center",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 460,
+          maxHeight: "92vh",
+          overflowY: "auto",
+          background: C.bg,
+          borderRadius:
+            "28px 28px 0 0",
+          padding:
+            "18px 18px 28px",
+          boxShadow:
+            "0 -10px 40px rgba(58,53,80,0.16)",
+        }}
+      >
+        {/* HEADER */}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            alignItems:
+              "center",
+            gap: 12,
+            marginBottom: 20,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontWeight: 700,
+                fontSize: 20,
+                color: C.ink,
+              }}
+            >
+              Add checkpoint
+            </div>
+
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 11,
+                color:
+                  C.inkFaint,
+                marginTop: 2,
+              }}
+            >
+              Record today's
+              prepaid balance
+            </div>
+          </div>
+
+          <IconButton
+            onClick={onClose}
+            title="Close"
+          >
+            <X size={18} />
+          </IconButton>
+        </div>
+
+        {/* UTILITY */}
+
+        <Field label="Utility">
+          <select
+            style={selectStyle}
+            value={utilityId}
+            onChange={(e) => {
+              setUtilityId(
+                e.target.value
+              );
+
+              setCurrentBalance(
+                ""
+              );
+
+              setTopupAmount(
+                ""
+              );
+
+              setUsage("");
+            }}
+          >
+            {data.utilities.map(
+              (u) => (
+                <option
+                  key={u.id}
+                  value={u.id}
+                >
+                  {u.name}
+                </option>
+              )
+            )}
+          </select>
+        </Field>
+
+        {/* DATE */}
+
+        <Field label="Date">
+          <input
+            style={inputStyle}
+            type="date"
+            value={date}
+            onChange={(e) =>
+              setDate(
+                e.target.value
+              )
+            }
+          />
+        </Field>
+
+        {/* PREVIOUS CHECKPOINT */}
+
+        {previousLog ? (
+          <Card
             style={{
-              padding: "12px 16px",
-              background: C.card,
-              borderRadius: 16,
-              marginBottom: 8,
-              border: `1px solid ${C.border}`,
+              padding: 14,
+              marginBottom: 16,
+              background:
+                C.primaryPale,
+              border: "none",
             }}
           >
             <div
@@ -973,6 +1970,400 @@ function Dashboard({
                 display: "flex",
                 justifyContent:
                   "space-between",
+                gap: 12,
+                alignItems:
+                  "center",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily:
+                      FONT_HEAD,
+                    fontWeight: 700,
+                    fontSize: 11,
+                    color:
+                      C.primaryDeep,
+                  }}
+                >
+                  Previous
+                  balance after top-up
+                </div>
+
+                <div
+                  style={{
+                    fontFamily:
+                      FONT_HEAD,
+                    fontSize: 10,
+                    color:
+                      C.inkSoft,
+                    marginTop: 2,
+                  }}
+                >
+                  {
+                    previousLog.date
+                  }
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontFamily:
+                    FONT_MONO,
+                  fontWeight: 700,
+                  fontSize: 16,
+                  color:
+                    C.primaryDeep,
+                }}
+              >
+                {fmtMoney(
+                  expectedPreviousBalance,
+                  data.currency
+                )}
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <Card
+            style={{
+              padding: 14,
+              marginBottom: 16,
+              background:
+                C.amberPale,
+              border: "none",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 9,
+                alignItems:
+                  "flex-start",
+              }}
+            >
+              <AlertTriangle
+                size={16}
+                color={C.amber}
+                style={{
+                  flexShrink: 0,
+                  marginTop: 1,
+                }}
+              />
+
+              <div
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  color: C.inkSoft,
+                }}
+              >
+                This is the first
+                checkpoint for{" "}
+                <strong>
+                  {utility?.name}
+                </strong>
+                . No consumption
+                will be calculated
+                yet. The next
+                checkpoint will
+                calculate usage
+                since this one.
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* CURRENT BALANCE */}
+
+        <Field
+          label="Current balance"
+          hint="Enter the prepaid balance shown before topping up."
+        >
+          <input
+            style={inputStyle}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={
+              currentBalance
+            }
+            onChange={(e) =>
+              setCurrentBalance(
+                e.target.value
+              )
+            }
+            placeholder="e.g. 120"
+          />
+        </Field>
+
+        {/* TOP UP */}
+
+        <Field
+          label="Top-up amount"
+          hint="Enter 0 if you only want to record the balance."
+        >
+          <input
+            style={inputStyle}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={
+              topupAmount
+            }
+            onChange={(e) =>
+              setTopupAmount(
+                e.target.value
+              )
+            }
+            placeholder="e.g. 300"
+          />
+        </Field>
+
+        {/* WHO PAID */}
+
+        {top > 0 && (
+          <Field label="Paid by">
+            <select
+              style={selectStyle}
+              value={person}
+              onChange={(e) =>
+                setPerson(
+                  e.target.value
+                )
+              }
+            >
+              {data.roommates.map(
+                (roommate) => (
+                  <option
+                    key={roommate}
+                    value={roommate}
+                  >
+                    {roommate}
+                  </option>
+                )
+              )}
+            </select>
+          </Field>
+        )}
+
+        {/* BALANCE WARNING */}
+
+        {hasPreviousLog &&
+          currentBalance !== "" &&
+          rawDifference <
+            -0.01 && (
+            <div
+              style={{
+                display: "flex",
+                gap: 9,
+                padding: 13,
+                borderRadius: 16,
+                background:
+                  C.amberPale,
+                marginBottom: 16,
+              }}
+            >
+              <AlertTriangle
+                size={17}
+                color={C.amber}
+                style={{
+                  flexShrink: 0,
+                }}
+              />
+
+              <div
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                  color:
+                    C.inkSoft,
+                }}
+              >
+                The current balance
+                is higher than the
+                previous recorded
+                balance after top-up.
+                This usually means
+                there was an
+                unrecorded top-up.
+                Consumption cannot
+                be calculated
+                accurately for this
+                checkpoint.
+              </div>
+            </div>
+          )}
+
+        {/* CALCULATION SUMMARY */}
+
+        <Card
+          style={{
+            marginBottom: 18,
+            background:
+              C.cardTint,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+            }}
+          >
+            <MiniStat
+              label="CONSUMED"
+              value={
+                hasPreviousLog &&
+                rawDifference >=
+                  0
+                  ? fmtMoney(
+                      impliedCost,
+                      data.currency
+                    )
+                  : "—"
+              }
+              tone="coral"
+            />
+
+            <MiniStat
+              label="AFTER TOP-UP"
+              value={fmtMoney(
+                balanceAfter,
+                data.currency
+              )}
+              tone="mint"
+            />
+          </div>
+        </Card>
+
+        {/* AUTO ELECTRICITY / WATER */}
+
+        {isAutoUsage ? (
+          <div
+            style={{
+              background:
+                C.mintPale,
+              borderRadius: 20,
+              padding: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 11,
+                fontWeight: 700,
+                color: C.mint,
+                marginBottom: 5,
+              }}
+            >
+              Estimated physical
+              usage
+            </div>
+
+            <div
+              style={{
+                fontFamily:
+                  FONT_MONO,
+                fontWeight: 700,
+                fontSize: 24,
+                color: C.ink,
+              }}
+            >
+              {calculatedUsage !=
+              null
+                ? `${fmtNum(
+                    calculatedUsage,
+                    2
+                  )} ${
+                    utility.unit
+                  }`
+                : `— ${
+                    utility?.unit ||
+                    ""
+                  }`}
+            </div>
+
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 11,
+                color:
+                  C.inkSoft,
+                marginTop: 6,
+                lineHeight: 1.5,
+              }}
+            >
+              Calculated from RMB
+              consumed using your
+              annual tier position.
+            </div>
+
+            {yearBaseline > 0 && (
+              <div
+                style={{
+                  marginTop: 9,
+                  paddingTop: 9,
+                  borderTop:
+                    "1px solid rgba(95,174,136,0.25)",
+                  fontFamily:
+                    FONT_MONO,
+                  fontSize: 10,
+                  color:
+                    C.inkSoft,
+                }}
+              >
+                Annual usage before
+                this checkpoint:{" "}
+                {fmtNum(
+                  yearBaseline,
+                  2
+                )}{" "}
+                {utility.unit}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* GAS MANUAL USAGE */
+
+          <Field
+            label={`Gas usage (${utility?.unit || "m³"})`}
+            hint="Optional. Enter the actual usage from the gas meter."
+          >
+            <input
+              style={inputStyle}
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.1"
+              value={usage}
+              onChange={(e) =>
+                setUsage(
+                  e.target.value
+                )
+              }
+              placeholder="e.g. 12.5"
+            />
+          </Field>
+        )}
+
+        {/* TIER BREAKDOWN */}
+
+        {effectiveUsage != null &&
+          effectiveUsage > 0 &&
+          tierRows.length >
+            0 && (
+            <Card
+              style={{
+                marginBottom: 18,
+                padding: 15,
               }}
             >
               <div
@@ -980,883 +2371,129 @@ function Dashboard({
                   fontFamily:
                     FONT_HEAD,
                   fontWeight: 700,
-                  fontSize: 13,
+                  fontSize: 12,
+                  color: C.ink,
+                  marginBottom: 10,
+                }}
+              >
+                Tier calculation
+              </div>
+
+              {tierRows.map(
+                (
+                  row,
+                  index
+                ) => (
+                  <div
+                    key={index}
+                    style={{
+                      display:
+                        "flex",
+                      justifyContent:
+                        "space-between",
+                      gap: 12,
+                      marginBottom:
+                        7,
+                      fontFamily:
+                        FONT_MONO,
+                      fontSize: 10,
+                      color:
+                        C.inkSoft,
+                    }}
+                  >
+                    <span>
+                      {fmtNum(
+                        row.amount,
+                        2
+                      )}{" "}
+                      {
+                        utility.unit
+                      }{" "}
+                      ×{" "}
+                      {fmtMoney(
+                        row.rate,
+                        data.currency
+                      )}
+                    </span>
+
+                    <span>
+                      {fmtMoney(
+                        row.cost,
+                        data.currency
+                      )}
+                    </span>
+                  </div>
+                )
+              )}
+
+              <div
+                style={{
+                  borderTop: `1px solid ${C.border}`,
+                  paddingTop: 9,
+                  marginTop: 7,
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  fontFamily:
+                    FONT_MONO,
+                  fontWeight: 700,
+                  fontSize: 11,
                   color: C.ink,
                 }}
               >
-                {log.utilityName}
-              </div>
-
-              <div
-                style={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 11,
-                  color: C.inkFaint,
-                }}
-              >
-                {log.date}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-                marginTop: 4,
-                alignItems:
-                  "baseline",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 12,
-                  color: C.inkSoft,
-                }}
-              >
-                {fmtMoney(
-                  log.currentBalance,
-                  currency
-                )}{" "}
-                <span
-                  style={{
-                    color: C.inkFaint,
-                  }}
-                >
-                  →
-                </span>{" "}
-                {fmtMoney(
-                  log.balanceAfter,
-                  currency
-                )}
-              </span>
-
-              {log.topupAmount > 0 && (
-                <span
-                  style={{
-                    fontFamily:
-                      FONT_MONO,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.mint,
-                  }}
-                >
-                  +
-                  {fmtMoney(
-                    log.topupAmount,
-                    currency
-                  )}
-                </span>
-              )}
-            </div>
-
-            {log.cost > 0 && (
-              <div
-                style={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 11,
-                  color: C.coral,
-                  marginTop: 2,
-                }}
-              >
-                consumed{" "}
-                {fmtMoney(
-                  log.cost,
-                  currency
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-/* ================================
-   ADD MONTHLY ENTRY
-================================ */
-
-function AddEntry({
-  data,
-  currentBalances,
-  onSave,
-}) {
-  const [utilityId, setUtilityId] =
-    useState(
-      data.utilities[0]
-        ? data.utilities[0].id
-        : ""
-    );
-
-  const [date, setDate] =
-    useState(todayISO());
-
-  const [
-    currentBalance,
-    setCurrentBalance,
-  ] = useState("");
-
-  const [
-    topupAmount,
-    setTopupAmount,
-  ] = useState("");
-
-  const [person, setPerson] =
-    useState(
-      data.roommates[0] || ""
-    );
-
-  const [usage, setUsage] =
-    useState("");
-
-  const [note, setNote] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
-
-  const [confirmed, setConfirmed] =
-    useState(false);
-
-  const utility =
-    data.utilities.find(
-      (u) => u.id === utilityId
-    );
-
-  const suggestedBalance =
-    currentBalances[utilityId] || 0;
-
-  useEffect(() => {
-    setCurrentBalance(
-      suggestedBalance
-        ? String(
-            Math.max(
-              0,
-              Number(
-                suggestedBalance.toFixed(
-                  2
-                )
-              )
-            )
-          )
-        : ""
-    );
-
-    setConfirmed(false);
-  }, [
-    utilityId,
-    suggestedBalance,
-  ]);
-
-  useEffect(() => {
-    setConfirmed(false);
-  }, [
-    date,
-    topupAmount,
-    usage,
-    person,
-    currentBalance,
-  ]);
-
-  const cb =
-    Number(currentBalance) || 0;
-
-  const top =
-    Number(topupAmount) || 0;
-
-  const balanceAfter =
-    cb + top;
-
-  const impliedCost =
-    suggestedBalance - cb;
-
-  /* ================================
-     YEARLY TIER BASELINE
-  ================================ */
-
-  const isAutoUsage =
-  utilityId === "elec" ||
-  utilityId === "water";
-
-const yearBaseline =
-  useMemo(() => {
-    if (!utility) return 0;
-
-    const year =
-      (date || "").slice(0, 4);
-
-    const startingUsage =
-      Number(
-        utility.startingAnnualUsage || 0
-      );
-
-    const trackedUsage =
-      data.logs
-        .filter(
-          (log) =>
-            log.utilityId ===
-              utilityId &&
-            log.usage != null &&
-            (log.date || "").slice(
-              0,
-              4
-            ) === year
-        )
-        .reduce(
-          (sum, log) =>
-            sum +
-            Number(log.usage || 0),
-          0
-        );
-
-    return (
-      startingUsage +
-      trackedUsage
-    );
-  }, [
-    data.logs,
-    utilityId,
-    date,
-    utility,
-  ]);
-
-/* ================================
-   AUTOMATIC PHYSICAL USAGE
-================================ */
-
-const calculatedUsage =
-  isAutoUsage &&
-  impliedCost > 0 &&
-  utility
-    ? usageFromCost(
-        impliedCost,
-        utility.tiers,
-        yearBaseline
-      )
-    : null;
-
-/*
-  Electricity + water:
-  use automatically calculated usage.
-
-  Gas:
-  keep manual meter usage.
-*/
-
-const effectiveUsage =
-  isAutoUsage
-    ? calculatedUsage
-    : usage === ""
-    ? null
-    : Number(usage);
-
-const tierEstimate =
-  utility &&
-  effectiveUsage != null
-    ? calcTierCost(
-        effectiveUsage,
-        utility.tiers,
-        yearBaseline
-      )
-    : 0;
-
-const tierRows =
-  utility &&
-  effectiveUsage != null
-    ? tierBreakdown(
-        effectiveUsage,
-        utility.tiers,
-        yearBaseline
-      )
-    : [];
-  /* ================================
-     SAVE ENTRY
-  ================================ */
-
-  function submit() {
-    if (!utilityId) {
-      setError(
-        "Choose a utility first."
-      );
-      return;
-    }
-
-    if (
-      currentBalance === "" ||
-      cb < 0
-    ) {
-      setError(
-        "Enter the current prepaid balance."
-      );
-      return;
-    }
-
-    if (top < 0) {
-      setError(
-        "Top-up amount can't be negative."
-      );
-      return;
-    }
-
-    setError("");
-
-    onSave({
-      id: uid(),
-
-      utilityId,
-
-      date,
-
-      month: date.slice(0, 7),
-
-      currentBalance: cb,
-
-      topupAmount: top,
-
-      balanceAfter,
-
-      /*
-        Consumption cost since
-        previous logged balance.
-
-        Example:
-        Previous after-top-up = ¥360
-        New current balance = ¥120
-        Consumed = ¥240
-      */
-      cost: impliedCost,
-
-      /*
-        Physical usage is optional.
-        It can be entered manually
-        if known from the utility meter.
-      */
-      usage: effectiveUsage,
-
-usageSource:
-  isAutoUsage
-    ? "estimated"
-    : "meter",
-
-      person:
-        top > 0
-          ? person
-          : null,
-
-      note,
-    });
-
-    setTopupAmount("");
-    setUsage("");
-    setNote("");
-    setConfirmed(true);
-
-    setCurrentBalance(
-      String(
-        Math.max(
-          0,
-          Number(
-            balanceAfter.toFixed(2)
-          )
-        )
-      )
-    );
-  }
-
-  if (
-    data.utilities.length === 0
-  ) {
-    return (
-      <EmptyState text="Add a utility in Settings before logging entries." />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        paddingTop: 18,
-      }}
-    >
-      {/* Utility */}
-
-      <Field label="Utility">
-        <select
-          style={selectStyle}
-          value={utilityId}
-          onChange={(e) =>
-            setUtilityId(
-              e.target.value
-            )
-          }
-        >
-          {data.utilities.map(
-            (u) => (
-              <option
-                key={u.id}
-                value={u.id}
-              >
-                {u.name}
-              </option>
-            )
-          )}
-        </select>
-      </Field>
-
-      {/* Date */}
-
-      <Field
-        label="Date"
-        hint="Your usual monthly checkpoint can be around the 5th."
-      >
-        <input
-          style={inputStyle}
-          type="date"
-          value={date}
-          onChange={(e) =>
-            setDate(e.target.value)
-          }
-        />
-      </Field>
-
-      {/* Current balance */}
-
-      <Field
-        label={`Current balance (${data.currency})`}
-        hint="Enter the prepaid balance shown before you top up."
-      >
-        <input
-          style={inputStyle}
-          type="number"
-          min="0"
-          step="0.01"
-          value={currentBalance}
-          onChange={(e) =>
-            setCurrentBalance(
-              e.target.value
-            )
-          }
-          placeholder="0.00"
-        />
-      </Field>
-
-      {/* Automatic consumption */}
-
-      {impliedCost > 0 &&
-        currentBalance !== "" && (
-          <div
-            style={{
-              background:
-                C.coralPale,
-              borderRadius: 16,
-              padding: "12px 14px",
-              marginTop: -8,
-              marginBottom: 16,
-              fontFamily:
-                FONT_HEAD,
-              fontSize: 12,
-              fontWeight: 600,
-              color: C.coral,
-            }}
-          >
-            Since your previous
-            checkpoint, this utility
-            consumed{" "}
-            <strong>
-              {fmtMoney(
-                impliedCost,
-                data.currency
-              )}
-            </strong>
-            .
-          </div>
-        )}
-
-      {impliedCost < 0 &&
-        currentBalance !== "" && (
-          <div
-            style={{
-              background:
-                C.amberPale,
-              borderRadius: 16,
-              padding: "12px 14px",
-              marginTop: -8,
-              marginBottom: 16,
-              fontFamily:
-                FONT_HEAD,
-              fontSize: 12,
-              fontWeight: 600,
-              color: C.amber,
-            }}
-          >
-            Current balance is{" "}
-            {fmtMoney(
-              Math.abs(
-                impliedCost
-              ),
-              data.currency
-            )}{" "}
-            higher than expected.
-            Check whether another
-            top-up happened since the
-            previous entry.
-          </div>
-        )}
-
-      {/* Top up */}
-
-      <Field
-        label={`Top-up amount (${data.currency})`}
-        hint="Enter 0 if you only want to record the balance."
-      >
-        <input
-          style={inputStyle}
-          type="number"
-          min="0"
-          step="0.01"
-          value={topupAmount}
-          onChange={(e) =>
-            setTopupAmount(
-              e.target.value
-            )
-          }
-          placeholder="0.00"
-        />
-      </Field>
-
-      {/* Payer */}
-
-      {top > 0 && (
-        <Field label="Paid by">
-          <select
-            style={selectStyle}
-            value={person}
-            onChange={(e) =>
-              setPerson(
-                e.target.value
-              )
-            }
-          >
-            {data.roommates.map(
-              (roommate) => (
-                <option
-                  key={roommate}
-                  value={roommate}
-                >
-                  {roommate}
-                </option>
-              )
-            )}
-          </select>
-        </Field>
-      )}
-
-      {/* Balance after top-up */}
-
-      <div
-        style={{
-          background:
-            C.primaryPale,
-          borderRadius: 20,
-          padding: 16,
-          marginBottom: 18,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent:
-              "space-between",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            <Wallet
-              size={17}
-              color={
-                C.primaryDeep
-              }
-            />
-
-            <span
-              style={{
-                fontFamily:
-                  FONT_HEAD,
-                fontWeight: 700,
-                fontSize: 13,
-                color:
-                  C.primaryDeep,
-              }}
-            >
-              Balance after top-up
-            </span>
-          </div>
-
-          <span
-            style={{
-              fontFamily:
-                FONT_MONO,
-              fontWeight: 700,
-              fontSize: 20,
-              color:
-                C.primaryDeep,
-            }}
-          >
-            {fmtMoney(
-              balanceAfter,
-              data.currency
-            )}
-          </span>
-        </div>
-      </div>
-
-    {/* Physical usage */}
-
-{isAutoUsage ? (
-  <div
-    style={{
-      background: C.mintPale,
-      borderRadius: 18,
-      padding: 15,
-      marginBottom: 18,
-    }}
-  >
-    <div
-      style={{
-        fontFamily: FONT_HEAD,
-        fontSize: 11,
-        fontWeight: 700,
-        color: C.mint,
-        marginBottom: 5,
-      }}
-    >
-      Estimated physical usage
-    </div>
-
-    <div
-      style={{
-        fontFamily: FONT_MONO,
-        fontWeight: 700,
-        fontSize: 22,
-        color: C.ink,
-      }}
-    >
-      {calculatedUsage != null
-        ? `${fmtNum(
-            calculatedUsage,
-            1
-          )} ${utility.unit}`
-        : `— ${utility.unit}`}
-    </div>
-
-    <div
-      style={{
-        fontFamily: FONT_HEAD,
-        fontSize: 11,
-        color: C.inkSoft,
-        marginTop: 5,
-        lineHeight: 1.5,
-      }}
-    >
-      Calculated automatically from
-      the prepaid balance consumed
-      and your annual tier position.
-    </div>
-  </div>
-) : (
-  <Field
-    label={`Gas usage (${utility ? utility.unit : "m³"})`}
-    hint="Enter the usage from the gas meter if you want to track physical consumption."
-  >
-    <input
-      style={inputStyle}
-      type="number"
-      min="0"
-      step="0.1"
-      value={usage}
-      onChange={(e) =>
-        setUsage(
-          e.target.value
-        )
-      }
-      placeholder="e.g. 12.5"
-    />
-  </Field>
-)}
-
-      {/* Tier estimate */}
-
-      {usage && utility && (
-        <div
-          style={{
-            background:
-              C.cardTint,
-            border: `1px dashed ${C.border}`,
-            borderRadius: 18,
-            padding: 14,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              fontFamily:
-                FONT_HEAD,
-              fontSize: 11,
-              color:
-                C.inkFaint,
-              marginBottom: 8,
-            }}
-          >
-            Estimated cost using
-            annual tiered rates
-          </div>
-
-          {tierRows.map(
-            (row, index) => (
-              <div
-                key={index}
-                style={{
-                  display:
-                    "flex",
-                  justifyContent:
-                    "space-between",
-                  gap: 10,
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 12,
-                  color:
-                    C.inkSoft,
-                  marginBottom: 4,
-                }}
-              >
                 <span>
-                  {fmtNum(
-                    row.amount
-                  )}{" "}
-                  {utility.unit} ×{" "}
-                  {data.currency}
-                  {row.rate}
+                  Tier cost
                 </span>
 
                 <span>
                   {fmtMoney(
-                    row.cost,
+                    tierEstimate,
                     data.currency
                   )}
                 </span>
               </div>
-            )
+            </Card>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              marginTop: 8,
-              paddingTop: 8,
-              borderTop: `1px solid ${C.border}`,
-              fontFamily:
-                FONT_MONO,
-              fontWeight: 700,
-              fontSize: 13,
-              color: C.ink,
-            }}
-          >
-            <span>
-              Tiered estimate
-            </span>
+        {/* NOTE */}
 
-            <span>
-              {fmtMoney(
-                tierEstimate,
-                data.currency
-              )}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Note */}
-
-      <Field label="Note — optional">
-        <input
-          style={{
-            ...inputStyle,
-            fontFamily:
-              FONT_HEAD,
-          }}
-          type="text"
-          value={note}
-          onChange={(e) =>
-            setNote(e.target.value)
-          }
-          placeholder="Anything worth remembering"
-        />
-      </Field>
-
-      {/* Error */}
-
-      {error && (
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            color: C.coral,
-            fontFamily:
-              FONT_HEAD,
-            fontWeight: 600,
-            fontSize: 13,
-            marginBottom: 12,
-          }}
+        <Field
+          label="Note"
+          hint="Optional."
         >
-          <AlertTriangle
-            size={14}
-          />
-          {error}
-        </div>
-      )}
-
-      {/* Success */}
-
-      {confirmed &&
-        !error && (
-          <div
+          <input
             style={{
-              display: "flex",
-              gap: 8,
-              alignItems:
-                "center",
-              color: C.mint,
+              ...inputStyle,
               fontFamily:
                 FONT_HEAD,
-              fontWeight: 600,
-              fontSize: 13,
-              marginBottom: 12,
             }}
-          >
-            <Check size={14} />
-            Saved.
-          </div>
-        )}
+            type="text"
+            value={note}
+            onChange={(e) =>
+              setNote(
+                e.target.value
+              )
+            }
+            placeholder="e.g. monthly top-up"
+          />
+        </Field>
 
-      <PrimaryButton
-        onClick={submit}
-        full
-      >
-        Save monthly record
-      </PrimaryButton>
+        {/* SAVE */}
+
+        <PrimaryButton
+          full
+          onClick={
+            handleSave
+          }
+          disabled={
+            !utility ||
+            !date ||
+            currentBalance === ""
+          }
+        >
+          Save checkpoint
+        </PrimaryButton>
+      </div>
     </div>
   );
 }
@@ -1866,849 +2503,1654 @@ usageSource:
 
 function History({
   data,
-  logs,
   onDelete,
-  currency,
 }) {
-  const [filter, setFilter] =
+  const [utilityFilter, setUtilityFilter] =
     useState("all");
 
-  const filtered =
-    filter === "all"
-      ? logs
-      : logs.filter(
-          (log) =>
-            log.utilityId === filter
+  const [monthFilter, setMonthFilter] =
+    useState("all");
+
+  const months =
+    useMemo(() => {
+      const unique =
+        Array.from(
+          new Set(
+            data.logs
+              .map(
+                (log) =>
+                  log.month ||
+                  (log.date || "").slice(
+                    0,
+                    7
+                  )
+              )
+              .filter(Boolean)
+          )
         );
 
+      return unique.sort().reverse();
+    }, [data.logs]);
+
+  const filteredLogs =
+    useMemo(() => {
+      return [...data.logs]
+        .filter((log) => {
+          const matchesUtility =
+            utilityFilter === "all" ||
+            log.utilityId === utilityFilter;
+
+          const logMonth =
+            log.month ||
+            (log.date || "").slice(
+              0,
+              7
+            );
+
+          const matchesMonth =
+            monthFilter === "all" ||
+            logMonth === monthFilter;
+
+          return (
+            matchesUtility &&
+            matchesMonth
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(b.date) -
+            new Date(a.date)
+        );
+    }, [
+      data.logs,
+      utilityFilter,
+      monthFilter,
+    ]);
+
   return (
-    <div
-      style={{
-        paddingTop: 18,
-      }}
-    >
-      <select
+    <div>
+      <div
         style={{
-          ...selectStyle,
-          marginBottom: 16,
+          margin:
+            "18px 0 18px",
         }}
-        value={filter}
-        onChange={(e) =>
-          setFilter(e.target.value)
-        }
       >
-        <option value="all">
-          All utilities
-        </option>
-
-        {data.utilities.map(
-          (utility) => (
-            <option
-              key={utility.id}
-              value={utility.id}
-            >
-              {utility.name}
-            </option>
-          )
-        )}
-      </select>
-
-      {filtered.length === 0 && (
-        <EmptyState text="No entries for this filter yet." />
-      )}
-
-      {filtered.map((log) => (
         <div
-          key={log.id}
           style={{
-            padding: "12px 16px",
-            background: C.card,
-            borderRadius: 16,
-            marginBottom: 8,
-            border: `1px solid ${C.border}`,
+            fontFamily: FONT_HEAD,
+            fontSize: 24,
+            fontWeight: 700,
+            color: C.ink,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent:
-                "space-between",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontFamily:
-                    FONT_HEAD,
-                  fontWeight: 700,
-                  fontSize: 13,
-                  color: C.ink,
-                }}
-              >
-                {log.utilityName}
-              </div>
+          History
+        </div>
 
-              <div
-                style={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 11,
-                  color: C.inkFaint,
-                  marginTop: 2,
-                }}
-              >
-                {log.date}
-              </div>
-            </div>
+        <div
+          style={{
+            fontFamily: FONT_HEAD,
+            fontSize: 12,
+            color: C.inkSoft,
+            marginTop: 3,
+          }}
+        >
+          Review every prepaid
+          checkpoint.
+        </div>
+      </div>
 
-            <IconButton
-              title="Delete"
-              danger
-              onClick={() =>
-                onDelete(log.id)
-              }
-            >
-              <Trash2 size={13} />
-            </IconButton>
-          </div>
+      {/* FILTERS */}
 
-          <div
-            style={{
-              fontFamily:
-                FONT_MONO,
-              fontSize: 12,
-              color: C.inkSoft,
-              marginTop: 8,
-            }}
-          >
-            {fmtMoney(
-              log.currentBalance,
-              currency
-            )}{" "}
-            <span
-              style={{
-                color: C.inkFaint,
-              }}
-            >
-              →
-            </span>{" "}
-            {fmtMoney(
-              log.balanceAfter,
-              currency
-            )}
-          </div>
-
-          {log.topupAmount > 0 && (
-            <div
-              style={{
-                fontFamily:
-                  FONT_MONO,
-                fontSize: 11,
-                color: C.mint,
-                marginTop: 4,
-                fontWeight: 700,
-              }}
-            >
-              +{" "}
-              {fmtMoney(
-                log.topupAmount,
-                currency
-              )}
-              {log.person
-                ? ` · ${log.person}`
-                : ""}
-            </div>
-          )}
-
-          {log.cost > 0 && (
-            <div
-              style={{
-                fontFamily:
-                  FONT_MONO,
-                fontSize: 11,
-                color: C.coral,
-                marginTop: 4,
-              }}
-            >
-              consumed{" "}
-              {fmtMoney(
-                log.cost,
-                currency
-              )}
-            </div>
-          )}
-
-          {log.usage != null && (
-            <div
-              style={{
-                fontFamily:
-                  FONT_MONO,
-                fontSize: 11,
-                color: C.inkFaint,
-                marginTop: 4,
-              }}
-            >
-              {fmtNum(log.usage)}{" "}
-              {log.unit}
-            </div>
-          )}
-
-          {log.note && (
+      <Card
+        style={{
+          marginBottom: 16,
+          padding: 14,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <div>
             <div
               style={{
                 fontFamily:
                   FONT_HEAD,
-                fontSize: 11,
-                color: C.inkFaint,
-                marginTop: 4,
+                fontWeight: 700,
+                fontSize: 10,
+                color:
+                  C.inkFaint,
+                marginBottom: 5,
               }}
             >
-              {log.note}
+              UTILITY
             </div>
-          )}
+
+            <select
+              style={{
+                ...selectStyle,
+                minHeight: 44,
+                padding:
+                  "10px 11px",
+                fontSize: 12,
+              }}
+              value={
+                utilityFilter
+              }
+              onChange={(e) =>
+                setUtilityFilter(
+                  e.target.value
+                )
+              }
+            >
+              <option value="all">
+                All utilities
+              </option>
+
+              {data.utilities.map(
+                (utility) => (
+                  <option
+                    key={
+                      utility.id
+                    }
+                    value={
+                      utility.id
+                    }
+                  >
+                    {
+                      utility.name
+                    }
+                  </option>
+                )
+              )}
+            </select>
+          </div>
+
+          <div>
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontWeight: 700,
+                fontSize: 10,
+                color:
+                  C.inkFaint,
+                marginBottom: 5,
+              }}
+            >
+              MONTH
+            </div>
+
+            <select
+              style={{
+                ...selectStyle,
+                minHeight: 44,
+                padding:
+                  "10px 11px",
+                fontSize: 12,
+              }}
+              value={monthFilter}
+              onChange={(e) =>
+                setMonthFilter(
+                  e.target.value
+                )
+              }
+            >
+              <option value="all">
+                All months
+              </option>
+
+              {months.map(
+                (month) => (
+                  <option
+                    key={month}
+                    value={month}
+                  >
+                    {monthLabel(
+                      month
+                    )}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
         </div>
-      ))}
+      </Card>
+
+      {/* EMPTY */}
+
+      {filteredLogs.length ===
+        0 && (
+        <EmptyState text="No matching checkpoints yet." />
+      )}
+
+      {/* LOG CARDS */}
+
+      {filteredLogs.map(
+        (log) => {
+          const utility =
+            data.utilities.find(
+              (u) =>
+                u.id ===
+                log.utilityId
+            );
+
+          const Icon =
+            utilityIcon(
+              log.utilityName ||
+                utility?.name
+            );
+
+          const isEstimated =
+            log.usageSource ===
+            "estimated";
+
+          return (
+            <Card
+              key={log.id}
+              style={{
+                marginBottom: 12,
+                padding: 16,
+              }}
+            >
+              {/* HEADER */}
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  gap: 12,
+                  alignItems:
+                    "flex-start",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems:
+                      "center",
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 13,
+                      background:
+                        C.primaryPale,
+                      display: "flex",
+                      justifyContent:
+                        "center",
+                      alignItems:
+                        "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon
+                      size={18}
+                      color={
+                        C.primaryDeep
+                      }
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      minWidth: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_HEAD,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        color: C.ink,
+                      }}
+                    >
+                      {log.utilityName ||
+                        utility?.name ||
+                        "Utility"}
+                    </div>
+
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_MONO,
+                        fontSize: 10,
+                        color:
+                          C.inkFaint,
+                        marginTop: 2,
+                      }}
+                    >
+                      {log.date}
+                    </div>
+                  </div>
+                </div>
+
+                <IconButton
+                  danger
+                  onClick={() =>
+                    onDelete(
+                      log.id
+                    )
+                  }
+                  title="Delete checkpoint"
+                >
+                  <Trash2
+                    size={16}
+                  />
+                </IconButton>
+              </div>
+
+              {/* BALANCE */}
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  marginTop: 14,
+                }}
+              >
+                <MiniStat
+                  label="BALANCE BEFORE"
+                  value={fmtMoney(
+                    log.currentBalance,
+                    data.currency
+                  )}
+                />
+
+                <MiniStat
+                  label="TOP-UP"
+                  value={fmtMoney(
+                    log.topupAmount,
+                    data.currency
+                  )}
+                  tone="mint"
+                />
+              </div>
+
+              <div
+                style={{
+                  marginTop: 8,
+                }}
+              >
+                <MiniStat
+                  label="BALANCE AFTER"
+                  value={fmtMoney(
+                    log.balanceAfter,
+                    data.currency
+                  )}
+                  tone="mint"
+                />
+              </div>
+
+              {/* CONSUMPTION */}
+
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 13,
+                  borderTop: `1px solid ${C.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent:
+                      "space-between",
+                    alignItems:
+                      "flex-start",
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_HEAD,
+                        fontWeight: 700,
+                        fontSize: 11,
+                        color:
+                          C.inkSoft,
+                      }}
+                    >
+                      Consumption
+                    </div>
+
+                    {log.previousCheckpointDate && (
+                      <div
+                        style={{
+                          fontFamily:
+                            FONT_MONO,
+                          fontSize: 9,
+                          color:
+                            C.inkFaint,
+                          marginTop: 3,
+                        }}
+                      >
+                        {
+                          log.previousCheckpointDate
+                        }{" "}
+                        → {log.date}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      textAlign:
+                        "right",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily:
+                          FONT_MONO,
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color:
+                          log.cost > 0
+                            ? C.coral
+                            : C.inkFaint,
+                      }}
+                    >
+                      {log.cost > 0
+                        ? fmtMoney(
+                            log.cost,
+                            data.currency
+                          )
+                        : "—"}
+                    </div>
+
+                    {log.usage !=
+                      null && (
+                      <div
+                        style={{
+                          fontFamily:
+                            FONT_MONO,
+                          fontSize: 11,
+                          color:
+                            C.inkSoft,
+                          marginTop: 3,
+                        }}
+                      >
+                        {isEstimated
+                          ? "~"
+                          : ""}
+                        {fmtNum(
+                          log.usage,
+                          2
+                        )}{" "}
+                        {log.unit ||
+                          utility?.unit}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {isEstimated &&
+                  log.usage !=
+                    null && (
+                    <div
+                      style={{
+                        display:
+                          "inline-block",
+                        marginTop: 8,
+                        padding:
+                          "5px 8px",
+                        borderRadius: 10,
+                        background:
+                          C.mintPale,
+                        fontFamily:
+                          FONT_HEAD,
+                        fontWeight: 700,
+                        fontSize: 9,
+                        color:
+                          C.mint,
+                      }}
+                    >
+                      ESTIMATED FROM
+                      RMB
+                    </div>
+                  )}
+
+                {log.usageSource ===
+                  "meter" &&
+                  log.usage !=
+                    null && (
+                    <div
+                      style={{
+                        display:
+                          "inline-block",
+                        marginTop: 8,
+                        padding:
+                          "5px 8px",
+                        borderRadius: 10,
+                        background:
+                          C.primaryPale,
+                        fontFamily:
+                          FONT_HEAD,
+                        fontWeight: 700,
+                        fontSize: 9,
+                        color:
+                          C.primaryDeep,
+                      }}
+                    >
+                      METER ENTRY
+                    </div>
+                  )}
+              </div>
+
+              {/* PAYER */}
+
+              {log.person && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems:
+                      "center",
+                    gap: 7,
+                    marginTop: 13,
+                    paddingTop: 11,
+                    borderTop: `1px solid ${C.border}`,
+                  }}
+                >
+                  <Wallet
+                    size={14}
+                    color={
+                      C.inkFaint
+                    }
+                  />
+
+                  <div
+                    style={{
+                      fontFamily:
+                        FONT_HEAD,
+                      fontSize: 10,
+                      color:
+                        C.inkSoft,
+                    }}
+                  >
+                    Top-up paid by{" "}
+                    <strong>
+                      {log.person}
+                    </strong>
+                  </div>
+                </div>
+              )}
+
+              {/* NOTE */}
+
+              {log.note && (
+                <div
+                  style={{
+                    marginTop: 11,
+                    padding: 11,
+                    background:
+                      C.cardTint,
+                    borderRadius: 13,
+                    fontFamily:
+                      FONT_HEAD,
+                    fontSize: 11,
+                    lineHeight: 1.5,
+                    color:
+                      C.inkSoft,
+                  }}
+                >
+                  {log.note}
+                </div>
+              )}
+            </Card>
+          );
+        }
+      )}
     </div>
   );
 }
-
 /* ================================
    INSIGHTS
 ================================ */
 
 function Insights({
   data,
-  currency,
-  monthlyCost,
-  monthlyByUtility,
-  fairness,
 }) {
-  return (
-    <div
-      style={{
-        paddingTop: 18,
-      }}
-    >
-      <SectionTitle>
-        Monthly cost vs top-ups
-      </SectionTitle>
+  const monthlyRows =
+    useMemo(() => {
+      const map =
+        new Map();
 
-      <Card
+      data.logs.forEach(
+        (log) => {
+          const month =
+            log.month ||
+            (log.date || "").slice(
+              0,
+              7
+            );
+
+          if (!month) return;
+
+          if (!map.has(month)) {
+            map.set(month, {
+              month,
+              label:
+                monthLabel(
+                  month
+                ),
+
+              cost: 0,
+              topup: 0,
+
+              elecUsage: 0,
+              waterUsage: 0,
+              gasUsage: 0,
+            });
+          }
+
+          const row =
+            map.get(month);
+
+          row.cost +=
+            Number(
+              log.cost || 0
+            );
+
+          row.topup +=
+            Number(
+              log.topupAmount ||
+                0
+            );
+
+          if (
+            log.usage != null
+          ) {
+            const amount =
+              Number(
+                log.usage || 0
+              );
+
+            if (
+              log.utilityId ===
+              "elec"
+            ) {
+              row.elecUsage +=
+                amount;
+            }
+
+            if (
+              log.utilityId ===
+              "water"
+            ) {
+              row.waterUsage +=
+                amount;
+            }
+
+            if (
+              log.utilityId ===
+              "gas"
+            ) {
+              row.gasUsage +=
+                amount;
+            }
+          }
+        }
+      );
+
+      return Array.from(
+        map.values()
+      )
+        .sort(
+          (a, b) =>
+            a.month.localeCompare(
+              b.month
+            )
+        )
+        .slice(-MONTH_WINDOW);
+    }, [data.logs]);
+
+  /* ================================
+     CURRENT BALANCES
+  ================================ */
+
+  const balanceRows =
+    useMemo(() => {
+      return data.utilities.map(
+        (utility) => {
+          const logs =
+            data.logs
+              .filter(
+                (log) =>
+                  log.utilityId ===
+                  utility.id
+              )
+              .sort(
+                (a, b) =>
+                  new Date(
+                    a.date
+                  ) -
+                  new Date(
+                    b.date
+                  )
+              );
+
+          const last =
+            logs[
+              logs.length - 1
+            ];
+
+          return {
+            name:
+              utility.name,
+
+            balance:
+              last
+                ? Number(
+                    last.balanceAfter ||
+                      0
+                  )
+                : 0,
+          };
+        }
+      );
+    }, [
+      data.logs,
+      data.utilities,
+    ]);
+
+  const totalConsumed =
+    data.logs.reduce(
+      (sum, log) =>
+        sum +
+        Number(
+          log.cost || 0
+        ),
+      0
+    );
+
+  const totalTopups =
+    data.logs.reduce(
+      (sum, log) =>
+        sum +
+        Number(
+          log.topupAmount ||
+            0
+        ),
+      0
+    );
+
+  const totalBalance =
+    balanceRows.reduce(
+      (sum, row) =>
+        sum +
+        Number(
+          row.balance || 0
+        ),
+      0
+    );
+
+  /* ================================
+     ROOMMATE CONTRIBUTIONS
+  ================================ */
+
+  const roommateRows =
+    useMemo(() => {
+      return data.roommates.map(
+        (roommate) => {
+          const paid =
+            data.logs
+              .filter(
+                (log) =>
+                  log.person ===
+                  roommate
+              )
+              .reduce(
+                (sum, log) =>
+                  sum +
+                  Number(
+                    log.topupAmount ||
+                      0
+                  ),
+                0
+              );
+
+          return {
+            roommate,
+            paid,
+          };
+        }
+      );
+    }, [
+      data.logs,
+      data.roommates,
+    ]);
+
+  const expectedPerPerson =
+    data.roommates.length > 0
+      ? totalTopups /
+        data.roommates.length
+      : 0;
+
+  return (
+    <div>
+      <div
         style={{
-          marginBottom: 24,
+          margin:
+            "18px 0 18px",
         }}
       >
         <div
           style={{
-            height: 200,
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 24,
+            fontWeight: 700,
+            color: C.ink,
           }}
         >
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-          >
-            <BarChart
-              data={monthlyCost}
-              margin={{
-                left: -20,
-                right: 4,
-              }}
-            >
-              <CartesianGrid
-                stroke={C.border}
-                vertical={false}
-              />
-
-              <XAxis
-                dataKey="label"
-                tick={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 11,
-                  fill: C.inkFaint,
-                }}
-                axisLine={{
-                  stroke: C.border,
-                }}
-                tickLine={false}
-              />
-
-              <YAxis
-                tick={{
-                  fontFamily:
-                    FONT_MONO,
-                  fontSize: 11,
-                  fill: C.inkFaint,
-                }}
-                axisLine={false}
-                tickLine={false}
-              />
-
-              <Tooltip
-                formatter={(
-                  value,
-                  name
-                ) => [
-                  fmtMoney(
-                    value,
-                    currency
-                  ),
-                  name,
-                ]}
-                contentStyle={{
-                  fontFamily:
-                    FONT_HEAD,
-                  fontSize: 12,
-                  borderRadius: 12,
-                  border: `1px solid ${C.border}`,
-                }}
-              />
-
-              <Legend
-                wrapperStyle={{
-                  fontFamily:
-                    FONT_HEAD,
-                  fontSize: 12,
-                }}
-              />
-
-              <Bar
-                dataKey="cost"
-                name="Consumed"
-                fill={C.coral}
-                radius={[
-                  8,
-                  8,
-                  0,
-                  0,
-                ]}
-              />
-
-              <Bar
-                dataKey="topups"
-                name="Topped up"
-                fill={C.mint}
-                radius={[
-                  8,
-                  8,
-                  0,
-                  0,
-                ]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          Insights
         </div>
-      </Card>
 
-      {/* Per utility charts */}
-
-      {data.utilities.map(
-        (utility, index) => {
-          const rows =
-            monthlyByUtility[
-              utility.id
-            ] || [];
-
-          const color =
-            C.chart[
-              index %
-                C.chart.length
-            ];
-
-          return (
-            <div
-              key={utility.id}
-              style={{
-                marginBottom: 24,
-              }}
-            >
-              <SectionTitle>
-                {utility.name}
-              </SectionTitle>
-
-              <Card
-                style={{
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily:
-                      FONT_HEAD,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.inkSoft,
-                    marginBottom: 6,
-                  }}
-                >
-                  monthly physical
-                  consumption (
-                  {utility.unit})
-                </div>
-
-                <div
-                  style={{
-                    height: 160,
-                  }}
-                >
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                  >
-                    <BarChart
-                      data={rows}
-                      margin={{
-                        left: -20,
-                        right: 4,
-                      }}
-                    >
-                      <CartesianGrid
-                        stroke={
-                          C.border
-                        }
-                        vertical={
-                          false
-                        }
-                      />
-
-                      <XAxis
-                        dataKey="label"
-                        tick={{
-                          fontFamily:
-                            FONT_MONO,
-                          fontSize: 10,
-                          fill:
-                            C.inkFaint,
-                        }}
-                        axisLine={{
-                          stroke:
-                            C.border,
-                        }}
-                        tickLine={
-                          false
-                        }
-                      />
-
-                      <YAxis
-                        tick={{
-                          fontFamily:
-                            FONT_MONO,
-                          fontSize: 10,
-                          fill:
-                            C.inkFaint,
-                        }}
-                        axisLine={
-                          false
-                        }
-                        tickLine={
-                          false
-                        }
-                      />
-
-                      <Tooltip
-                        formatter={(
-                          value
-                        ) => [
-                          `${fmtNum(
-                            value
-                          )} ${
-                            utility.unit
-                          }`,
-                          "Usage",
-                        ]}
-                        contentStyle={{
-                          fontFamily:
-                            FONT_HEAD,
-                          fontSize: 12,
-                          borderRadius: 12,
-                          border: `1px solid ${C.border}`,
-                        }}
-                      />
-
-                      <Bar
-                        dataKey="usage"
-                        fill={color}
-                        radius={[
-                          8,
-                          8,
-                          0,
-                          0,
-                        ]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-
-              <Card>
-                <div
-                  style={{
-                    fontFamily:
-                      FONT_HEAD,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: C.inkSoft,
-                    marginBottom: 6,
-                  }}
-                >
-                  balance at end of
-                  month ({currency})
-                </div>
-
-                <div
-                  style={{
-                    height: 160,
-                  }}
-                >
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                  >
-                    <AreaChart
-                      data={rows}
-                      margin={{
-                        left: -20,
-                        right: 4,
-                      }}
-                    >
-                      <CartesianGrid
-                        stroke={
-                          C.border
-                        }
-                        vertical={
-                          false
-                        }
-                      />
-
-                      <XAxis
-                        dataKey="label"
-                        tick={{
-                          fontFamily:
-                            FONT_MONO,
-                          fontSize: 10,
-                          fill:
-                            C.inkFaint,
-                        }}
-                        axisLine={{
-                          stroke:
-                            C.border,
-                        }}
-                        tickLine={
-                          false
-                        }
-                      />
-
-                      <YAxis
-                        tick={{
-                          fontFamily:
-                            FONT_MONO,
-                          fontSize: 10,
-                          fill:
-                            C.inkFaint,
-                        }}
-                        axisLine={
-                          false
-                        }
-                        tickLine={
-                          false
-                        }
-                      />
-
-                      <Tooltip
-                        formatter={(
-                          value
-                        ) => [
-                          fmtMoney(
-                            value,
-                            currency
-                          ),
-                          "Balance",
-                        ]}
-                        contentStyle={{
-                          fontFamily:
-                            FONT_HEAD,
-                          fontSize: 12,
-                          borderRadius: 12,
-                          border: `1px solid ${C.border}`,
-                        }}
-                      />
-
-                      <Area
-                        type="monotone"
-                        dataKey="balance"
-                        stroke={
-                          C.primary
-                        }
-                        fill={
-                          C.primaryPale
-                        }
-                        strokeWidth={
-                          2.5
-                        }
-                        dot={{
-                          r: 3,
-                          fill:
-                            C.primary,
-                        }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
-            </div>
-          );
-        }
-      )}
-
-      {/* Roommate settlement */}
-
-      <SectionTitle>
-        Roommate contribution
-      </SectionTitle>
-
-      <Card>
         <div
           style={{
-            fontFamily: FONT_HEAD,
+            fontFamily:
+              FONT_HEAD,
             fontSize: 12,
-            color: C.inkSoft,
-            marginBottom: 14,
+            color:
+              C.inkSoft,
+            marginTop: 3,
           }}
         >
-          This compares each
-          roommate's top-ups with an
-          equal share of the utility
-          consumption recorded in
-          the tracker.
+          See how much you top up
+          and consume over time.
         </div>
+      </div>
 
-        {fairness.map(
-          (person) => (
-            <div
-              key={person.name}
-              style={{
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent:
-                    "space-between",
-                  alignItems:
-                    "center",
-                  marginBottom: 6,
-                  gap: 10,
-                }}
-              >
-                <span
-                  style={{
-                    fontFamily:
-                      FONT_HEAD,
-                    fontWeight: 600,
-                    fontSize: 14,
-                    color: C.ink,
-                  }}
-                >
-                  {person.name}
-                </span>
-
-                <span
-                  style={{
-                    fontFamily:
-                      FONT_MONO,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color:
-                      person.net >= 0
-                        ? C.mint
-                        : C.coral,
-                    display:
-                      "inline-flex",
-                    alignItems:
-                      "center",
-                    gap: 4,
-                  }}
-                >
-                  {person.net >=
-                  0 ? (
-                    <ArrowUpRight
-                      size={13}
-                    />
-                  ) : (
-                    <ArrowDownRight
-                      size={13}
-                    />
-                  )}
-
-                  {person.net >= 0
-                    ? `overpaid ${fmtMoney(
-                        person.net,
-                        currency
-                      )}`
-                    : `underpaid ${fmtMoney(
-                        Math.abs(
-                          person.net
-                        ),
-                        currency
-                      )}`}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 999,
-                  background:
-                    C.primaryPale,
-                  overflow:
-                    "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${Math.min(
-                      100,
-                      (Math.abs(
-                        person.net
-                      ) /
-                        (person.scale ||
-                          1)) *
-                        100
-                    )}%`,
-                    background:
-                      person.net >= 0
-                        ? C.mint
-                        : C.coral,
-                    borderRadius: 999,
-                  }}
-                />
-              </div>
-            </div>
-          )
-        )}
-      </Card>
-
-      {/* Tariff reference */}
+      {/* SUMMARY */}
 
       <div
         style={{
-          marginTop: 24,
+          display: "grid",
+          gridTemplateColumns:
+            "1fr 1fr",
+          gap: 10,
+          marginBottom: 18,
         }}
       >
-        <SectionTitle>
-          Current tariff reference
-        </SectionTitle>
+        <Card
+          style={{
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontFamily:
+                FONT_HEAD,
+              fontSize: 10,
+              fontWeight: 700,
+              color:
+                C.inkFaint,
+            }}
+          >
+            TOTAL CONSUMED
+          </div>
 
-        {data.utilities.map(
-          (utility) => (
-            <Card
-              key={utility.id}
-              style={{
-                marginBottom: 10,
-              }}
-            >
-              <div
-                style={{
-                  fontFamily:
-                    FONT_HEAD,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: C.ink,
-                  marginBottom: 10,
-                }}
-              >
-                {utility.name}
-              </div>
+          <div
+            style={{
+              fontFamily:
+                FONT_MONO,
+              fontWeight: 700,
+              fontSize: 18,
+              color: C.coral,
+              marginTop: 5,
+            }}
+          >
+            {fmtMoney(
+              totalConsumed,
+              data.currency
+            )}
+          </div>
+        </Card>
 
-              {utility.tiers.map(
-                (tier, index) => {
-                  const previous =
-                    index === 0
-                      ? 0
-                      : utility.tiers[
-                          index - 1
-                        ].upTo;
+        <Card
+          style={{
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              fontFamily:
+                FONT_HEAD,
+              fontSize: 10,
+              fontWeight: 700,
+              color:
+                C.inkFaint,
+            }}
+          >
+            TOTAL TOP-UPS
+          </div>
 
-                  let label;
+          <div
+            style={{
+              fontFamily:
+                FONT_MONO,
+              fontWeight: 700,
+              fontSize: 18,
+              color: C.mint,
+              marginTop: 5,
+            }}
+          >
+            {fmtMoney(
+              totalTopups,
+              data.currency
+            )}
+          </div>
+        </Card>
+      </div>
 
-                  if (
-                    tier.upTo ===
-                    null
-                  ) {
-                    label = `>${
-                      previous || 0
-                    } ${utility.unit}`;
-                  } else if (
-                    index === 0
-                  ) {
-                    label = `≤${tier.upTo} ${utility.unit}`;
-                  } else {
-                    label = `${previous}–${tier.upTo} ${utility.unit}`;
-                  }
-
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        display:
-                          "flex",
-                        justifyContent:
-                          "space-between",
-                        gap: 12,
-                        marginBottom: 6,
-                        fontFamily:
-                          FONT_MONO,
-                        fontSize: 12,
-                        color:
-                          C.inkSoft,
-                      }}
-                    >
-                      <span>
-                        {label}
-                      </span>
-
-                      <strong
-                        style={{
-                          color:
-                            C.primaryDeep,
-                        }}
-                      >
-                        {currency}
-                        {tier.rate} /{" "}
-                        {utility.unit}
-                      </strong>
-                    </div>
-                  );
-                }
-              )}
-            </Card>
-          )
-        )}
+      <Card
+        style={{
+          marginBottom: 18,
+          padding: 15,
+        }}
+      >
+        <div
+          style={{
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 10,
+            fontWeight: 700,
+            color:
+              C.inkFaint,
+          }}
+        >
+          CURRENT COMBINED BALANCE
+        </div>
 
         <div
           style={{
-            fontFamily: FONT_HEAD,
-            fontSize: 11,
-            color: C.inkFaint,
-            lineHeight: 1.5,
-            padding: "4px 4px 0",
+            fontFamily:
+              FONT_MONO,
+            fontSize: 24,
+            fontWeight: 700,
+            color:
+              C.primaryDeep,
+            marginTop: 4,
           }}
         >
-          Tier thresholds are
-          cumulative annual
-          household usage. If you
-          start using this tracker
-          midway through the year,
-          physical tier estimates
-          may not perfectly match
-          the utility provider until
-          the next calendar year.
+          {fmtMoney(
+            totalBalance,
+            data.currency
+          )}
         </div>
-      </div>
+      </Card>
+
+      {/* NO DATA */}
+
+      {monthlyRows.length ===
+        0 && (
+        <EmptyState text="Add at least two checkpoints for a utility before consumption insights become useful." />
+      )}
+
+      {/* RMB CHART */}
+
+      {monthlyRows.length >
+        0 && (
+        <>
+          <SectionTitle>
+            Monthly RMB
+          </SectionTitle>
+
+          <Card
+            style={{
+              padding:
+                "16px 10px 10px",
+              marginBottom: 22,
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: 250,
+              }}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <BarChart
+                  data={
+                    monthlyRows
+                  }
+                  margin={{
+                    top: 10,
+                    right: 8,
+                    left: -18,
+                    bottom: 0,
+                  }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={
+                      C.border
+                    }
+                  />
+
+                  <XAxis
+                    dataKey="label"
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <YAxis
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <Tooltip
+                    formatter={(
+                      value,
+                      name
+                    ) => [
+                      fmtMoney(
+                        value,
+                        data.currency
+                      ),
+                      name ===
+                      "cost"
+                        ? "Consumed"
+                        : "Top-up",
+                    ]}
+                  />
+
+                  <Legend
+                    formatter={(
+                      value
+                    ) =>
+                      value ===
+                      "cost"
+                        ? "Consumed"
+                        : "Top-up"
+                    }
+                  />
+
+                  <Bar
+                    dataKey="cost"
+                    fill={
+                      C.chart[1]
+                    }
+                    radius={[
+                      8,
+                      8,
+                      0,
+                      0,
+                    ]}
+                  />
+
+                  <Bar
+                    dataKey="topup"
+                    fill={
+                      C.chart[2]
+                    }
+                    radius={[
+                      8,
+                      8,
+                      0,
+                      0,
+                    ]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* ELECTRICITY */}
+
+      {monthlyRows.some(
+        (row) =>
+          row.elecUsage > 0
+      ) && (
+        <>
+          <SectionTitle>
+            Electricity usage
+          </SectionTitle>
+
+          <Card
+            style={{
+              padding:
+                "16px 10px 10px",
+              marginBottom: 22,
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: 220,
+              }}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <AreaChart
+                  data={
+                    monthlyRows
+                  }
+                  margin={{
+                    top: 10,
+                    right: 8,
+                    left: -18,
+                    bottom: 0,
+                  }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="elecGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor={
+                          C.chart[0]
+                        }
+                        stopOpacity={
+                          0.6
+                        }
+                      />
+
+                      <stop
+                        offset="95%"
+                        stopColor={
+                          C.chart[0]
+                        }
+                        stopOpacity={
+                          0.05
+                        }
+                      />
+                    </linearGradient>
+                  </defs>
+
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={
+                      C.border
+                    }
+                  />
+
+                  <XAxis
+                    dataKey="label"
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <YAxis
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <Tooltip
+                    formatter={(
+                      value
+                    ) => [
+                      `${fmtNum(
+                        value,
+                        2
+                      )} kWh`,
+                      "Estimated usage",
+                    ]}
+                  />
+
+                  <Area
+                    type="monotone"
+                    dataKey="elecUsage"
+                    stroke={
+                      C.chart[0]
+                    }
+                    fill="url(#elecGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* WATER */}
+
+      {monthlyRows.some(
+        (row) =>
+          row.waterUsage > 0
+      ) && (
+        <>
+          <SectionTitle>
+            Water usage
+          </SectionTitle>
+
+          <Card
+            style={{
+              padding:
+                "16px 10px 10px",
+              marginBottom: 22,
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: 220,
+              }}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <AreaChart
+                  data={
+                    monthlyRows
+                  }
+                  margin={{
+                    top: 10,
+                    right: 8,
+                    left: -18,
+                    bottom: 0,
+                  }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="waterGradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor={
+                          C.chart[2]
+                        }
+                        stopOpacity={
+                          0.6
+                        }
+                      />
+
+                      <stop
+                        offset="95%"
+                        stopColor={
+                          C.chart[2]
+                        }
+                        stopOpacity={
+                          0.05
+                        }
+                      />
+                    </linearGradient>
+                  </defs>
+
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={
+                      C.border
+                    }
+                  />
+
+                  <XAxis
+                    dataKey="label"
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <YAxis
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <Tooltip
+                    formatter={(
+                      value
+                    ) => [
+                      `${fmtNum(
+                        value,
+                        2
+                      )} m³`,
+                      "Estimated usage",
+                    ]}
+                  />
+
+                  <Area
+                    type="monotone"
+                    dataKey="waterUsage"
+                    stroke={
+                      C.chart[2]
+                    }
+                    fill="url(#waterGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* GAS */}
+
+      {monthlyRows.some(
+        (row) =>
+          row.gasUsage > 0
+      ) && (
+        <>
+          <SectionTitle>
+            Gas usage
+          </SectionTitle>
+
+          <Card
+            style={{
+              padding:
+                "16px 10px 10px",
+              marginBottom: 22,
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: 220,
+              }}
+            >
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <BarChart
+                  data={
+                    monthlyRows
+                  }
+                  margin={{
+                    top: 10,
+                    right: 8,
+                    left: -18,
+                    bottom: 0,
+                  }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={
+                      C.border
+                    }
+                  />
+
+                  <XAxis
+                    dataKey="label"
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <YAxis
+                    tick={{
+                      fontSize: 10,
+                      fill:
+                        C.inkSoft,
+                    }}
+                    axisLine={
+                      false
+                    }
+                    tickLine={
+                      false
+                    }
+                  />
+
+                  <Tooltip
+                    formatter={(
+                      value
+                    ) => [
+                      `${fmtNum(
+                        value,
+                        2
+                      )} m³`,
+                      "Meter usage",
+                    ]}
+                  />
+
+                  <Bar
+                    dataKey="gasUsage"
+                    fill={
+                      C.chart[3]
+                    }
+                    radius={[
+                      8,
+                      8,
+                      0,
+                      0,
+                    ]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {/* ROOMMATE CONTRIBUTIONS */}
+
+      {data.roommates.length >
+        0 && (
+        <>
+          <SectionTitle>
+            Top-up contributions
+          </SectionTitle>
+
+          <Card>
+            {roommateRows.map(
+              (row) => {
+                const difference =
+                  row.paid -
+                  expectedPerPerson;
+
+                const ahead =
+                  difference >
+                  0.01;
+
+                const behind =
+                  difference <
+                  -0.01;
+
+                return (
+                  <div
+                    key={
+                      row.roommate
+                    }
+                    style={{
+                      display:
+                        "flex",
+                      justifyContent:
+                        "space-between",
+                      gap: 12,
+                      alignItems:
+                        "center",
+                      padding:
+                        "11px 0",
+                      borderBottom: `1px solid ${C.border}`,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontFamily:
+                            FONT_HEAD,
+                          fontWeight: 700,
+                          fontSize: 12,
+                          color:
+                            C.ink,
+                        }}
+                      >
+                        {
+                          row.roommate
+                        }
+                      </div>
+
+                      <div
+                        style={{
+                          fontFamily:
+                            FONT_MONO,
+                          fontSize: 10,
+                          color:
+                            C.inkFaint,
+                          marginTop: 2,
+                        }}
+                      >
+                        Paid{" "}
+                        {fmtMoney(
+                          row.paid,
+                          data.currency
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display:
+                          "flex",
+                        alignItems:
+                          "center",
+                        gap: 5,
+                        fontFamily:
+                          FONT_MONO,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: ahead
+                          ? C.mint
+                          : behind
+                          ? C.coral
+                          : C.inkSoft,
+                      }}
+                    >
+                      {ahead && (
+                        <ArrowUpRight
+                          size={14}
+                        />
+                      )}
+
+                      {behind && (
+                        <ArrowDownRight
+                          size={14}
+                        />
+                      )}
+
+                      {!ahead &&
+                      !behind ? (
+                        <>
+                          <Check
+                            size={14}
+                          />
+                          even
+                        </>
+                      ) : (
+                        fmtMoney(
+                          Math.abs(
+                            difference
+                          ),
+                          data.currency
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 10,
+                lineHeight: 1.5,
+                color:
+                  C.inkFaint,
+              }}
+            >
+              This only compares who
+              paid the top-ups. It
+              does not automatically
+              calculate how much each
+              roommate owes.
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -2716,287 +4158,61 @@ function Insights({
    SETTINGS
 ================================ */
 
-const ghostAddStyle = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  background: C.card,
-  border: `1.5px dashed ${C.border}`,
-  borderRadius: 14,
-  padding: "10px 14px",
-  fontFamily: FONT_HEAD,
-  fontWeight: 600,
-  fontSize: 13,
-  color: C.inkSoft,
-  cursor: "pointer",
-  marginTop: 4,
-};
-
 function SettingsPanel({
   data,
-  onChange,
+  setData,
 }) {
-  const [
-    confirmReset,
-    setConfirmReset,
-  ] = useState(false);
-
-  function updateRoommate(
-    index,
-    value
-  ) {
-    const next = [
-      ...data.roommates,
-    ];
-
-    next[index] = value;
-
-    onChange({
-      ...data,
-      roommates: next,
-    });
-  }
-
-  function addRoommate() {
-    onChange({
-      ...data,
-      roommates: [
-        ...data.roommates,
-        "New roommate",
-      ],
-    });
-  }
-
-  function removeRoommate(
-    index
-  ) {
-    onChange({
-      ...data,
-      roommates:
-        data.roommates.filter(
-          (_, i) => i !== index
-        ),
-    });
-  }
-
-  function updateUtility(
-    id,
+  const updateUtility = (
+    utilityId,
     patch
-  ) {
-    onChange({
-      ...data,
+  ) => {
+    setData((prev) => ({
+      ...prev,
       utilities:
-        data.utilities.map(
+        prev.utilities.map(
           (utility) =>
-            utility.id === id
+            utility.id ===
+            utilityId
               ? {
                   ...utility,
                   ...patch,
                 }
               : utility
         ),
-    });
-  }
+    }));
+  };
 
-  function updateTier(
+  const updateTier = (
     utilityId,
     tierIndex,
     patch
-  ) {
-    onChange({
-      ...data,
+  ) => {
+    setData((prev) => ({
+      ...prev,
       utilities:
-        data.utilities.map(
+        prev.utilities.map(
           (utility) => {
             if (
               utility.id !==
               utilityId
-            ) {
-              return utility;
-            }
-            {(utility.id === "elec" ||
-  utility.id === "water") && (
-  <div
-    style={{
-      background: C.primaryPale,
-      borderRadius: 16,
-      padding: 14,
-      marginBottom: 14,
-    }}
-  >
-    <div
-      style={{
-        fontFamily: FONT_HEAD,
-        fontWeight: 700,
-        fontSize: 12,
-        color: C.primaryDeep,
-        marginBottom: 6,
-      }}
-    >
-      Starting annual usage
-    </div>
-
-    <div
-      style={{
-        fontFamily: FONT_HEAD,
-        fontSize: 11,
-        color: C.inkSoft,
-        marginBottom: 8,
-        lineHeight: 1.5,
-      }}
-    >
-      Enter the usage already consumed earlier in
-      the same calendar year before you started
-      using this tracker.
-    </div>
-
-    <div
-      style={{
-        display: "flex",
-        gap: 8,
-        alignItems: "center",
-      }}
-    >
-      <input
-        style={{
-          ...inputStyle,
-          flex: 1,
-        }}
-        type="number"
-        min="0"
-        step="0.1"
-        value={
-          utility.startingAnnualUsage ?? 0
-        }
-        onChange={(e) =>
-          updateUtility(
-            utility.id,
-            {
-              startingAnnualUsage:
-                Number(
-                  e.target.value || 0
-                ),
-            }
-          )
-        }
-      />
-
-      <span
-        style={{
-          fontFamily: FONT_MONO,
-          fontSize: 12,
-          color: C.inkSoft,
-          minWidth: 42,
-        }}
-      >
-        {utility.unit}
-      </span>
-    </div>
-  </div>
-)}
-
-            return {
-              ...utility,
-              tiers:
-                utility.tiers.map(
-                  (
-                    tier,
-                    index
-                  ) =>
-                    index ===
-                    tierIndex
-                      ? {
-                          ...tier,
-                          ...patch,
-                        }
-                      : tier
-                ),
-            };
-          }
-        ),
-    });
-  }
-
-  function addTier(
-    utilityId
-  ) {
-    onChange({
-      ...data,
-      utilities:
-        data.utilities.map(
-          (utility) => {
-            if (
-              utility.id !==
-              utilityId
-            ) {
-              return utility;
-            }
-
-            const tiers = [
-              ...utility.tiers,
-            ];
-
-            const last =
-              tiers[
-                tiers.length - 1
-              ];
-
-            if (last) {
-              last.upTo =
-                last.upTo === null
-                  ? 100
-                  : last.upTo;
-            }
-
-            tiers.push({
-              upTo: null,
-              rate: last
-                ? last.rate
-                : 1,
-            });
-
-            return {
-              ...utility,
-              tiers,
-            };
-          }
-        ),
-    });
-  }
-
-  function removeTier(
-    utilityId,
-    tierIndex
-  ) {
-    onChange({
-      ...data,
-      utilities:
-        data.utilities.map(
-          (utility) => {
-            if (
-              utility.id !==
-                utilityId ||
-              utility.tiers
-                .length <= 1
             ) {
               return utility;
             }
 
             const tiers =
-              utility.tiers.filter(
-                (_, index) =>
-                  index !==
+              utility.tiers.map(
+                (
+                  tier,
+                  index
+                ) =>
+                  index ===
                   tierIndex
+                    ? {
+                        ...tier,
+                        ...patch,
+                      }
+                    : tier
               );
-
-            tiers[
-              tiers.length - 1
-            ] = {
-              ...tiers[
-                tiers.length - 1
-              ],
-              upTo: null,
-            };
 
             return {
               ...utility,
@@ -3004,170 +4220,314 @@ function SettingsPanel({
             };
           }
         ),
-    });
-  }
+    }));
+  };
 
-  function addUtility() {
-    onChange({
-      ...data,
-      utilities: [
-        ...data.utilities,
-        {
-          id: uid(),
-          name: "New utility",
-          unit: "units",
-          tiers: [
-            {
-              upTo: 100,
-              rate: 1,
-            },
-            {
-              upTo: null,
-              rate: 1.5,
-            },
-          ],
-        },
-      ],
-    });
-  }
-
-  function removeUtility(id) {
-    onChange({
-      ...data,
+  const addTier = (
+    utilityId
+  ) => {
+    setData((prev) => ({
+      ...prev,
       utilities:
-        data.utilities.filter(
+        prev.utilities.map(
           (utility) =>
-            utility.id !== id
+            utility.id ===
+            utilityId
+              ? {
+                  ...utility,
+                  tiers: [
+                    ...utility.tiers,
+                    {
+                      upTo: null,
+                      rate: 0,
+                    },
+                  ],
+                }
+              : utility
         ),
-    });
-  }
+    }));
+  };
+
+  const deleteTier = (
+    utilityId,
+    tierIndex
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      utilities:
+        prev.utilities.map(
+          (utility) => {
+            if (
+              utility.id !==
+              utilityId
+            ) {
+              return utility;
+            }
+
+            if (
+              utility.tiers.length <=
+              1
+            ) {
+              return utility;
+            }
+
+            return {
+              ...utility,
+              tiers:
+                utility.tiers.filter(
+                  (
+                    _,
+                    index
+                  ) =>
+                    index !==
+                    tierIndex
+                ),
+            };
+          }
+        ),
+    }));
+  };
+
+  const addRoommate = () => {
+    setData((prev) => ({
+      ...prev,
+      roommates: [
+        ...prev.roommates,
+        `Roommate ${
+          prev.roommates.length +
+          1
+        }`,
+      ],
+    }));
+  };
+
+  const updateRoommate = (
+    index,
+    value
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      roommates:
+        prev.roommates.map(
+          (
+            roommate,
+            i
+          ) =>
+            i === index
+              ? value
+              : roommate
+        ),
+    }));
+  };
+
+  const deleteRoommate = (
+    index
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      roommates:
+        prev.roommates.filter(
+          (_, i) =>
+            i !== index
+        ),
+    }));
+  };
+
+  const resetData = () => {
+    const confirmed =
+      window.confirm(
+        "Reset all utility data and checkpoints? This cannot be undone."
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setData(
+      defaultData()
+    );
+  };
 
   return (
-    <div
-      style={{
-        paddingTop: 18,
-        paddingBottom: 24,
-      }}
-    >
-      <SectionTitle>
-        Currency symbol
-      </SectionTitle>
-
-      <input
-        style={{
-          ...inputStyle,
-          width: 90,
-          marginBottom: 24,
-        }}
-        value={data.currency}
-        onChange={(e) =>
-          onChange({
-            ...data,
-            currency:
-              e.target.value,
-          })
-        }
-      />
-
-      <SectionTitle>
-        Roommates
-      </SectionTitle>
-
-      {data.roommates.map(
-        (roommate, index) => (
-          <div
-            key={index}
-            style={{
-              display: "flex",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <input
-              style={{
-                ...inputStyle,
-                fontFamily:
-                  FONT_HEAD,
-              }}
-              value={roommate}
-              onChange={(e) =>
-                updateRoommate(
-                  index,
-                  e.target.value
-                )
-              }
-            />
-
-            <IconButton
-              danger
-              title="Remove roommate"
-              onClick={() =>
-                removeRoommate(
-                  index
-                )
-              }
-            >
-              <X size={14} />
-            </IconButton>
-          </div>
-        )
-      )}
-
-      <button
-        onClick={addRoommate}
-        style={ghostAddStyle}
-      >
-        <Plus size={13} />
-        Add roommate
-      </button>
-
+    <div>
       <div
         style={{
-          marginTop: 28,
+          margin:
+            "18px 0 18px",
         }}
       >
-        <SectionTitle>
-          Utilities and tiered
-          rates
-        </SectionTitle>
+        <div
+          style={{
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 24,
+            fontWeight: 700,
+            color: C.ink,
+          }}
+        >
+          Settings
+        </div>
 
         <div
           style={{
             fontFamily:
               FONT_HEAD,
             fontSize: 12,
-            color: C.inkFaint,
-            marginBottom: 14,
+            color:
+              C.inkSoft,
+            marginTop: 3,
           }}
         >
-          These tiers are
-          cumulative per calendar
-          year.
+          Edit your utility
+          rates and apartment
+          setup.
         </div>
+      </div>
 
-        {data.utilities.map(
-          (utility) => (
-            <Card
-              key={utility.id}
+      {/* CURRENCY */}
+
+      <SectionTitle>
+        General
+      </SectionTitle>
+
+      <Card
+        style={{
+          marginBottom: 22,
+        }}
+      >
+        <Field
+          label="Currency symbol"
+          hint="Usually ¥ for your utilities in China."
+        >
+          <input
+            style={inputStyle}
+            type="text"
+            maxLength={4}
+            value={
+              data.currency
+            }
+            onChange={(e) =>
+              setData(
+                (prev) => ({
+                  ...prev,
+                  currency:
+                    e.target
+                      .value,
+                })
+              )
+            }
+          />
+        </Field>
+      </Card>
+
+      {/* ROOMMATES */}
+
+      <SectionTitle>
+        Roommates
+      </SectionTitle>
+
+      <Card
+        style={{
+          marginBottom: 22,
+        }}
+      >
+        {data.roommates.map(
+          (
+            roommate,
+            index
+          ) => (
+            <div
+              key={index}
               style={{
+                display: "flex",
+                gap: 8,
+                alignItems:
+                  "center",
+                marginBottom: 9,
+              }}
+            >
+              <input
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                }}
+                value={
+                  roommate
+                }
+                onChange={(e) =>
+                  updateRoommate(
+                    index,
+                    e.target
+                      .value
+                  )
+                }
+              />
+
+              {data.roommates
+                .length >
+                1 && (
+                <IconButton
+                  danger
+                  onClick={() =>
+                    deleteRoommate(
+                      index
+                    )
+                  }
+                  title="Delete roommate"
+                >
+                  <Trash2
+                    size={16}
+                  />
+                </IconButton>
+              )}
+            </div>
+          )
+        )}
+
+        <button
+          type="button"
+          style={
+            ghostAddStyle
+          }
+          onClick={
+            addRoommate
+          }
+        >
+          <Plus size={15} />
+          Add roommate
+        </button>
+      </Card>
+
+      {/* UTILITIES */}
+
+      <SectionTitle>
+        Utilities & tariff tiers
+      </SectionTitle>
+
+      {data.utilities.map(
+        (utility) => (
+          <Card
+            key={utility.id}
+            style={{
+              marginBottom: 16,
+            }}
+          >
+            {/* NAME + UNIT */}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "1.5fr 0.7fr",
+                gap: 9,
                 marginBottom: 14,
               }}
             >
-              <div
-                style={{
-                  display:
-                    "flex",
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-              >
+              <Field label="Utility name">
                 <input
-                  style={{
-                    ...inputStyle,
-                    fontFamily:
-                      FONT_HEAD,
-                    fontWeight: 700,
-                  }}
+                  style={
+                    inputStyle
+                  }
                   value={
                     utility.name
                   }
@@ -3176,18 +4536,20 @@ function SettingsPanel({
                       utility.id,
                       {
                         name:
-                          e.target
+                          e
+                            .target
                             .value,
                       }
                     )
                   }
                 />
+              </Field>
 
+              <Field label="Unit">
                 <input
-                  style={{
-                    ...inputStyle,
-                    width: 90,
-                  }}
+                  style={
+                    inputStyle
+                  }
                   value={
                     utility.unit
                   }
@@ -3196,103 +4558,320 @@ function SettingsPanel({
                       utility.id,
                       {
                         unit:
-                          e.target
+                          e
+                            .target
                             .value,
                       }
                     )
                   }
-                  placeholder="unit"
                 />
+              </Field>
+            </div>
 
-                <IconButton
-                  danger
-                  title="Remove utility"
-                  onClick={() =>
-                    removeUtility(
-                      utility.id
-                    )
-                  }
+            {/* STARTING ANNUAL USAGE */}
+
+            {(utility.id ===
+              "elec" ||
+              utility.id ===
+                "water") && (
+              <div
+                style={{
+                  background:
+                    C.primaryPale,
+                  borderRadius: 18,
+                  padding: 14,
+                  marginBottom: 16,
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily:
+                      FONT_HEAD,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color:
+                      C.primaryDeep,
+                    marginBottom: 5,
+                  }}
                 >
-                  <Trash2
-                    size={14}
+                  Starting annual usage
+                </div>
+
+                <div
+                  style={{
+                    fontFamily:
+                      FONT_HEAD,
+                    fontSize: 11,
+                    color:
+                      C.inkSoft,
+                    lineHeight: 1.5,
+                    marginBottom: 9,
+                  }}
+                >
+                  Enter how much
+                  electricity or
+                  water was already
+                  used earlier in
+                  this calendar year
+                  before you started
+                  using the tracker.
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems:
+                      "center",
+                  }}
+                >
+                  <input
+                    style={{
+                      ...inputStyle,
+                      flex: 1,
+                    }}
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={
+                      utility.startingAnnualUsage ??
+                      0
+                    }
+                    onChange={(e) =>
+                      updateUtility(
+                        utility.id,
+                        {
+                          startingAnnualUsage:
+                            Math.max(
+                              0,
+                              Number(
+                                e
+                                  .target
+                                  .value ||
+                                  0
+                              )
+                            ),
+                        }
+                      )
+                    }
                   />
-                </IconButton>
+
+                  <span
+                    style={{
+                      fontFamily:
+                        FONT_MONO,
+                      fontSize: 12,
+                      color:
+                        C.inkSoft,
+                      minWidth: 44,
+                    }}
+                  >
+                    {utility.unit}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    fontFamily:
+                      FONT_HEAD,
+                    fontSize: 10,
+                    lineHeight: 1.5,
+                    color:
+                      C.inkFaint,
+                    marginTop: 7,
+                  }}
+                >
+                  Leave this as 0 if
+                  you do not know the
+                  earlier annual
+                  usage. The physical
+                  usage estimate can
+                  be less accurate
+                  near a tier
+                  boundary.
+                </div>
+              </div>
+            )}
+
+            {/* AUTO USAGE INFO */}
+
+            <div
+              style={{
+                display: "flex",
+                gap: 9,
+                alignItems:
+                  "flex-start",
+                padding: 12,
+                borderRadius: 15,
+                background:
+                  utility.autoUsage
+                    ? C.mintPale
+                    : C.cardTint,
+                marginBottom: 16,
+              }}
+            >
+              {utility.autoUsage ? (
+                <Check
+                  size={16}
+                  color={C.mint}
+                  style={{
+                    marginTop: 1,
+                    flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <Gauge
+                  size={16}
+                  color={
+                    C.primaryDeep
+                  }
+                  style={{
+                    marginTop: 1,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+
+              <div
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 10,
+                  lineHeight: 1.5,
+                  color:
+                    C.inkSoft,
+                }}
+              >
+                {utility.autoUsage
+                  ? "Physical usage is calculated automatically from RMB consumption and the tariff tiers."
+                  : "Physical usage is entered manually from the meter."}
+              </div>
+            </div>
+
+            {/* TIER HEADER */}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "0.55fr 1fr 1fr 36px",
+                gap: 6,
+                alignItems:
+                  "center",
+                marginBottom: 7,
+                padding:
+                  "0 2px",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color:
+                    C.inkFaint,
+                }}
+              >
+                TIER
               </div>
 
               <div
                 style={{
                   fontFamily:
                     FONT_HEAD,
-                  fontSize: 11,
+                  fontSize: 9,
+                  fontWeight: 700,
                   color:
                     C.inkFaint,
-                  marginBottom: 8,
                 }}
               >
-                Tier · up to ·
-                rate per{" "}
+                UP TO
+              </div>
+
+              <div
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color:
+                    C.inkFaint,
+                }}
+              >
+                RATE /{" "}
                 {utility.unit}
               </div>
 
-              {utility.tiers.map(
-                (
-                  tier,
-                  index
-                ) => (
+              <div />
+            </div>
+
+            {/* TIERS */}
+
+            {utility.tiers.map(
+              (
+                tier,
+                index
+              ) => {
+                const isLast =
+                  index ===
+                  utility.tiers
+                    .length -
+                    1;
+
+                return (
                   <div
                     key={index}
                     style={{
                       display:
-                        "flex",
-                      gap: 8,
+                        "grid",
+                      gridTemplateColumns:
+                        "0.55fr 1fr 1fr 36px",
+                      gap: 6,
                       alignItems:
                         "center",
                       marginBottom: 8,
                     }}
                   >
-                    <span
+                    <div
                       style={{
                         fontFamily:
                           FONT_MONO,
-                        fontSize: 12,
+                        fontWeight: 700,
+                        fontSize: 11,
                         color:
-                          C.inkFaint,
-                        width: 14,
+                          C.primaryDeep,
                       }}
                     >
                       {index + 1}
-                    </span>
+                    </div>
 
                     <input
                       style={{
                         ...inputStyle,
-                        flex: 1,
+                        padding:
+                          "10px 9px",
+                        minHeight: 42,
+                        fontSize: 11,
                       }}
                       type="number"
                       min="0"
+                      step="0.1"
+                      disabled={
+                        isLast &&
+                        tier.upTo ===
+                          null
+                      }
                       value={
                         tier.upTo ===
-                          null ||
-                        tier.upTo ===
-                          undefined
+                        null
                           ? ""
                           : tier.upTo
                       }
                       placeholder={
-                        index ===
-                        utility
-                          .tiers
-                          .length -
-                          1
-                          ? "and above"
-                          : "up to"
-                      }
-                      disabled={
-                        index ===
-                        utility
-                          .tiers
-                          .length -
-                          1
+                        isLast
+                          ? "∞"
+                          : ""
                       }
                       onChange={(e) =>
                         updateTier(
@@ -3318,7 +4897,10 @@ function SettingsPanel({
                     <input
                       style={{
                         ...inputStyle,
-                        flex: 1,
+                        padding:
+                          "10px 9px",
+                        minHeight: 42,
+                        fontSize: 11,
                       }}
                       type="number"
                       min="0"
@@ -3331,157 +4913,176 @@ function SettingsPanel({
                           utility.id,
                           index,
                           {
-                            rate: Number(
-                              e
-                                .target
-                                .value
-                            ),
+                            rate:
+                              Number(
+                                e
+                                  .target
+                                  .value ||
+                                  0
+                              ),
                           }
                         )
                       }
                     />
 
-                    <IconButton
-                      danger
-                      title="Remove tier"
-                      onClick={() =>
-                        removeTier(
-                          utility.id,
-                          index
-                        )
-                      }
-                    >
-                      <X size={13} />
-                    </IconButton>
+                    {utility.tiers
+                      .length >
+                      1 && (
+                      <IconButton
+                        danger
+                        onClick={() =>
+                          deleteTier(
+                            utility.id,
+                            index
+                          )
+                        }
+                        title="Delete tier"
+                      >
+                        <Trash2
+                          size={
+                            14
+                          }
+                        />
+                      </IconButton>
+                    )}
                   </div>
+                );
+              }
+            )}
+
+            <button
+              type="button"
+              style={{
+                ...ghostAddStyle,
+                marginTop: 4,
+              }}
+              onClick={() =>
+                addTier(
+                  utility.id
                 )
-              )}
+              }
+            >
+              <Plus
+                size={14}
+              />
+              Add tier
+            </button>
+          </Card>
+        )
+      )}
 
-              <button
-                onClick={() =>
-                  addTier(
-                    utility.id
-                  )
-                }
-                style={
-                  ghostAddStyle
-                }
-              >
-                <Plus size={13} />
-                Add tier
-              </button>
-            </Card>
-          )
-        )}
+      {/* CURRENT RATE REFERENCE */}
 
-        <button
-          onClick={addUtility}
-          style={ghostAddStyle}
-        >
-          <Plus size={13} />
-          Add utility
-        </button>
-      </div>
-
-      {/* Reset */}
-
-      <div
+      <Card
         style={{
-          marginTop: 28,
-          paddingTop: 20,
-          borderTop: `1px solid ${C.border}`,
+          marginTop: 6,
+          marginBottom: 22,
+          background:
+            C.cardTint,
         }}
       >
-        {!confirmReset ? (
-          <button
-            onClick={() =>
-              setConfirmReset(
-                true
-              )
-            }
-            style={{
-              ...ghostAddStyle,
-              color: C.coral,
-              borderColor:
-                C.coralPale,
-            }}
-          >
-            <Trash2 size={13} />
-            Reset all data
-          </button>
-        ) : (
-          <Card
-            style={{
-              background:
-                C.coralPale,
-              border: "none",
-            }}
-          >
-            <div
-              style={{
-                fontFamily:
-                  FONT_HEAD,
-                fontSize: 13,
-                fontWeight: 600,
-                color: C.coral,
-                marginBottom: 10,
-              }}
-            >
-              This will delete all
-              saved utility records,
-              roommate names and
-              settings on this
-              device.
-            </div>
+        <div
+          style={{
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 12,
+            fontWeight: 700,
+            color:
+              C.primaryDeep,
+            marginBottom: 8,
+          }}
+        >
+          Your current tariff setup
+        </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                onClick={() => {
-                  onChange(
-                    defaultData()
-                  );
-                  setConfirmReset(
-                    false
-                  );
-                }}
-                style={{
-                  ...ghostAddStyle,
-                  color: C.white,
-                  background:
-                    C.coral,
-                  borderColor:
-                    C.coral,
-                }}
-              >
-                Yes, reset everything
-              </button>
+        <div
+          style={{
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 10,
+            lineHeight: 1.7,
+            color:
+              C.inkSoft,
+          }}
+        >
+          <strong>
+            Electricity:
+          </strong>{" "}
+          ≤2760 kWh ¥0.5283,
+          2760–4800 kWh ¥0.5783,
+          above 4800 kWh ¥0.8283.
+          <br />
 
-              <button
-                onClick={() =>
-                  setConfirmReset(
-                    false
-                  )
-                }
-                style={
-                  ghostAddStyle
-                }
-              >
-                Cancel
-              </button>
-            </div>
-          </Card>
-        )}
-      </div>
+          <strong>
+            Water:
+          </strong>{" "}
+          ≤216 m³ ¥2.91,
+          216–300 m³ ¥3.71,
+          above 300 m³ ¥6.11.
+          <br />
+
+          <strong>
+            Gas:
+          </strong>{" "}
+          ≤400 m³ ¥2.99,
+          400–1000 m³ ¥3.59,
+          above 1000 m³ ¥4.49.
+        </div>
+      </Card>
+
+      {/* RESET */}
+
+      <SectionTitle>
+        Data
+      </SectionTitle>
+
+      <Card
+        style={{
+          marginBottom: 32,
+        }}
+      >
+        <div
+          style={{
+            fontFamily:
+              FONT_HEAD,
+            fontSize: 11,
+            lineHeight: 1.5,
+            color:
+              C.inkSoft,
+            marginBottom: 12,
+          }}
+        >
+          Your records are stored
+          only in this browser on
+          this device.
+        </div>
+
+        <button
+          type="button"
+          onClick={
+            resetData
+          }
+          style={{
+            width: "100%",
+            border: "none",
+            borderRadius: 16,
+            padding: "13px 16px",
+            background:
+              C.coralPale,
+            color: C.coral,
+            fontFamily:
+              FONT_HEAD,
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          Reset all data
+        </button>
+      </Card>
     </div>
   );
 }
-
 /* ================================
    MAIN APP
 ================================ */
@@ -3491,839 +5092,519 @@ export default function App() {
     useState(() => loadData());
 
   const [tab, setTab] =
-    useState("dashboard");
+    useState("home");
 
-  const [notice, setNotice] =
-    useState("");
+  const [showAdd, setShowAdd] =
+    useState(false);
 
-  const persist =
-    useCallback((next) => {
-      setData(next);
+  /* ================================
+     SAVE TO LOCAL STORAGE
+  ================================ */
 
-      const ok =
-        saveData(next);
+  useEffect(() => {
+    saveData(data);
+  }, [data]);
 
-      if (!ok) {
-        setNotice(
-          "Could not save your latest change."
-        );
-      } else {
-        setNotice("");
-      }
-    }, []);
+  /* ================================
+     SAVE NEW CHECKPOINT
+  ================================ */
 
   const addLog =
     useCallback(
-      (entry) => {
-        persist({
-          ...data,
+      (record) => {
+        setData((prev) => ({
+          ...prev,
           logs: [
-            ...data.logs,
-            entry,
+            ...prev.logs,
+            record,
           ],
-        });
+        }));
       },
-      [data, persist]
+      []
     );
+
+  /* ================================
+     DELETE CHECKPOINT
+  ================================ */
 
   const deleteLog =
     useCallback(
       (id) => {
-        persist({
-          ...data,
+        const confirmed =
+          window.confirm(
+            "Delete this checkpoint?"
+          );
+
+        if (!confirmed) {
+          return;
+        }
+
+        setData((prev) => ({
+          ...prev,
           logs:
-            data.logs.filter(
+            prev.logs.filter(
               (log) =>
                 log.id !== id
             ),
-        });
+        }));
       },
-      [data, persist]
+      []
     );
 
   /* ================================
-     DERIVED DATA
+     PER-UTILITY SUMMARY
   ================================ */
 
-  const derived =
+  const perUtility =
     useMemo(() => {
-      const currency =
-        data.currency || "¥";
-
-      const utilById =
-        Object.fromEntries(
-          data.utilities.map(
-            (utility) => [
-              utility.id,
-              utility,
-            ]
-          )
-        );
-
-      const allMonths =
-        Array.from(
-          new Set(
-            data.logs.map(
-              (log) => log.month
-            )
-          )
-        ).sort();
-
-      const perUtility =
-        data.utilities.map(
-          (utility) => {
-            const logs = [
-              ...data.logs.filter(
+      return data.utilities.map(
+        (utility) => {
+          const logs =
+            data.logs
+              .filter(
                 (log) =>
                   log.utilityId ===
                   utility.id
-              ),
-            ].sort((a, b) =>
-              (a.date || "")
-                .localeCompare(
-                  b.date || ""
-                )
-            );
-
-            const topupSum =
-              logs.reduce(
-                (sum, log) =>
-                  sum +
-                  Number(
-                    log.topupAmount ||
-                      0
-                  ),
-                0
-              );
-
-            const costSum =
-              logs.reduce(
-                (sum, log) =>
-                  sum +
-                  Number(
-                    log.cost || 0
-                  ),
-                0
-              );
-
-            const last =
-              logs[
-                logs.length - 1
-              ];
-
-            const balance =
-              last
-                ? Number(
-                    last.balanceAfter ||
-                      0
+              )
+              .sort(
+                (a, b) =>
+                  new Date(
+                    a.date
+                  ) -
+                  new Date(
+                    b.date
                   )
-                : 0;
+              );
 
-            const lastDate =
-              last
-                ? last.date
-                : null;
+          const last =
+            logs[
+              logs.length - 1
+            ];
 
-            const byMonth = {};
+          const balance =
+            last
+              ? Number(
+                  last.balanceAfter ||
+                    0
+                )
+              : 0;
 
-            logs.forEach(
-              (log) => {
-                byMonth[
-                  log.month
-                ] =
-                  (byMonth[
-                    log.month
-                  ] || 0) +
-                  Number(
-                    log.cost || 0
-                  );
-              }
+          const topupSum =
+            logs.reduce(
+              (sum, log) =>
+                sum +
+                Number(
+                  log.topupAmount ||
+                    0
+                ),
+              0
             );
 
-            const monthKeys =
-              Object.keys(
-                byMonth
-              ).sort();
+          const costSum =
+            logs.reduce(
+              (sum, log) =>
+                sum +
+                Number(
+                  log.cost || 0
+                ),
+              0
+            );
 
-            const last3 =
-              monthKeys.slice(-3);
+          const usageSum =
+            logs.reduce(
+              (sum, log) =>
+                sum +
+                Number(
+                  log.usage || 0
+                ),
+              0
+            );
 
-            const avgMonthlyCost =
-              last3.length
-                ? last3.reduce(
-                    (
-                      sum,
-                      month
-                    ) =>
-                      sum +
-                      byMonth[
-                        month
-                      ],
-                    0
-                  ) /
-                  last3.length
-                : 0;
+          let status =
+            "green";
 
-            let status =
-              "green";
-
-            if (balance < 0) {
-              status = "red";
-            } else if (
-              avgMonthlyCost >
-                0 &&
-              balance <
-                avgMonthlyCost
-            ) {
-              status =
-                "amber";
-            }
-
-            return {
-              utility,
-              topupSum,
-              costSum,
-              balance,
-              lastDate,
-              avgMonthlyCost,
-              status,
-            };
+          if (balance < 0) {
+            status = "red";
+          } else if (
+            balance < 50
+          ) {
+            status = "amber";
           }
-        );
 
-      const overallBalance =
-        perUtility.reduce(
-          (sum, row) =>
-            sum + row.balance,
-          0
-        );
-
-      const recent = [
-        ...data.logs,
-      ]
-        .sort((a, b) =>
-          (b.date || "")
-            .localeCompare(
-              a.date || ""
-            )
-        )
-        .slice(0, 6)
-        .map((log) => ({
-          ...log,
-          utilityName:
-            utilById[
-              log.utilityId
-            ]
-              ? utilById[
-                  log.utilityId
-                ].name
-              : "Utility",
-        }));
-
-      const displayMonths =
-        allMonths.slice(-6);
-
-      const monthlyCost =
-        displayMonths.map(
-          (month) => ({
-            label:
-              monthLabel(month),
-
-            cost:
-              data.logs
-                .filter(
-                  (log) =>
-                    log.month ===
-                    month
-                )
-                .reduce(
-                  (sum, log) =>
-                    sum +
-                    Number(
-                      log.cost ||
-                        0
-                    ),
-                  0
-                ),
-
-            topups:
-              data.logs
-                .filter(
-                  (log) =>
-                    log.month ===
-                    month
-                )
-                .reduce(
-                  (sum, log) =>
-                    sum +
-                    Number(
-                      log.topupAmount ||
-                        0
-                    ),
-                  0
-                ),
-          })
-        );
-
-      const monthlyByUtility =
-        {};
-
-      data.utilities.forEach(
-        (utility) => {
-          let lastBalance =
-            null;
-
-          const full =
-            allMonths.map(
-              (month) => {
-                const monthLogs =
-                  data.logs.filter(
-                    (log) =>
-                      log.utilityId ===
-                        utility.id &&
-                      log.month ===
-                        month
-                  );
-
-                const cost =
-                  monthLogs.reduce(
-                    (
-                      sum,
-                      log
-                    ) =>
-                      sum +
-                      Number(
-                        log.cost ||
-                          0
-                      ),
-                    0
-                  );
-
-                const topups =
-                  monthLogs.reduce(
-                    (
-                      sum,
-                      log
-                    ) =>
-                      sum +
-                      Number(
-                        log.topupAmount ||
-                          0
-                      ),
-                    0
-                  );
-
-                const usage =
-                  monthLogs.reduce(
-                    (
-                      sum,
-                      log
-                    ) =>
-                      sum +
-                      Number(
-                        log.usage ||
-                          0
-                      ),
-                    0
-                  );
-
-                if (
-                  monthLogs.length
-                ) {
-                  const lastLog =
-                    [
-                      ...monthLogs,
-                    ]
-                      .sort(
-                        (
-                          a,
-                          b
-                        ) =>
-                          (
-                            a.date ||
-                            ""
-                          ).localeCompare(
-                            b.date ||
-                              ""
-                          )
-                      )
-                      .slice(-1)[0];
-
-                  lastBalance =
-                    Number(
-                      lastLog.balanceAfter ||
-                        0
-                    );
-                }
-
-                return {
-                  label:
-                    monthLabel(
-                      month
-                    ),
-                  usage,
-                  cost,
-                  topups,
-                  balance:
-                    lastBalance,
-                };
-              }
-            );
-
-          monthlyByUtility[
-            utility.id
-          ] = full.slice(
-            -MONTH_WINDOW
-          );
+          return {
+            utility,
+            balance,
+            topupSum,
+            costSum,
+            usageSum,
+            lastDate:
+              last?.date ||
+              null,
+            status,
+          };
         }
       );
-
-      const totalCostAll =
-        data.logs.reduce(
-          (sum, log) =>
-            sum +
-            Number(
-              log.cost || 0
-            ),
-          0
-        );
-
-      const fairShare =
-        data.roommates.length
-          ? totalCostAll /
-            data.roommates.length
-          : 0;
-
-      const netValues =
-        data.roommates.map(
-          (roommate) => {
-            const topped =
-              data.logs
-                .filter(
-                  (log) =>
-                    log.person ===
-                    roommate
-                )
-                .reduce(
-                  (
-                    sum,
-                    log
-                  ) =>
-                    sum +
-                    Number(
-                      log.topupAmount ||
-                        0
-                    ),
-                  0
-                );
-
-            return {
-              name: roommate,
-              net:
-                topped -
-                fairShare,
-            };
-          }
-        );
-
-      const scale =
-        Math.max(
-          1,
-          ...netValues.map(
-            (person) =>
-              Math.abs(
-                person.net
-              )
-          )
-        );
-
-      const fairness =
-        netValues.map(
-          (person) => ({
-            ...person,
-            scale,
-          })
-        );
-
-      const currentBalances =
-        Object.fromEntries(
-          perUtility.map(
-            (row) => [
-              row.utility.id,
-              row.balance,
-            ]
-          )
-        );
-
-      return {
-        currency,
-        perUtility,
-        overallBalance,
-        recent,
-        monthlyCost,
-        monthlyByUtility,
-        fairness,
-        currentBalances,
-      };
-    }, [data]);
+    }, [
+      data.logs,
+      data.utilities,
+    ]);
 
   /* ================================
-     NAVIGATION
+     COMBINED BALANCE
   ================================ */
 
-  const navLeft = [
-    {
-      key: "dashboard",
-      label: "Home",
-      Icon: Home,
-    },
-    {
-      key: "history",
-      label: "History",
-      Icon: ListTree,
-    },
-  ];
+  const overallBalance =
+    useMemo(() => {
+      return perUtility.reduce(
+        (sum, row) =>
+          sum +
+          Number(
+            row.balance || 0
+          ),
+        0
+      );
+    }, [perUtility]);
 
-  const navRight = [
-    {
-      key: "insights",
-      label: "Insights",
-      Icon: BarChart2,
-    },
-    {
-      key: "settings",
-      label: "Settings",
-      Icon: SettingsIcon,
-    },
-  ];
+  /* ================================
+     RECENT ACTIVITY
+  ================================ */
 
-  function NavButton({
-    item,
+  const recent =
+    useMemo(() => {
+      return [...data.logs]
+        .sort(
+          (a, b) =>
+            new Date(b.date) -
+            new Date(a.date)
+        )
+        .slice(0, 5);
+    }, [data.logs]);
+
+  /* ================================
+     SCREEN
+  ================================ */
+
+  let content = null;
+
+  if (tab === "home") {
+    content = (
+      <Dashboard
+        data={data}
+        perUtility={
+          perUtility
+        }
+        overallBalance={
+          overallBalance
+        }
+        recent={recent}
+        currency={
+          data.currency
+        }
+      />
+    );
+  }
+
+  if (tab === "history") {
+    content = (
+      <History
+        data={data}
+        onDelete={
+          deleteLog
+        }
+      />
+    );
+  }
+
+  if (tab === "insights") {
+    content = (
+      <Insights
+        data={data}
+      />
+    );
+  }
+
+  if (tab === "settings") {
+    content = (
+      <SettingsPanel
+        data={data}
+        setData={setData}
+      />
+    );
+  }
+
+  /* ================================
+     NAV ITEM
+  ================================ */
+
+  function NavItem({
+    id,
+    icon: Icon,
+    label,
   }) {
     const active =
-      tab === item.key;
+      tab === id;
 
     return (
       <button
+        type="button"
         onClick={() =>
-          setTab(item.key)
+          setTab(id)
         }
         style={{
+          flex: 1,
           border: "none",
-          background: "none",
-          cursor: "pointer",
+          background:
+            "transparent",
           display: "flex",
           flexDirection:
             "column",
           alignItems:
             "center",
+          justifyContent:
+            "center",
           gap: 3,
           padding:
-            "6px 10px",
+            "8px 2px",
+          cursor: "pointer",
           color: active
             ? C.primaryDeep
             : C.inkFaint,
-          flex: 1,
         }}
       >
-        <div
-          style={{
-            background: active
-              ? C.primaryPale
-              : "transparent",
-            borderRadius: 12,
-            padding: 6,
-            display: "flex",
-          }}
-        >
-          <item.Icon
-            size={19}
-          />
-        </div>
+        <Icon
+          size={19}
+          strokeWidth={
+            active
+              ? 2.5
+              : 2
+          }
+        />
 
         <span
           style={{
             fontFamily:
               FONT_HEAD,
-            fontWeight: 700,
-            fontSize: 10,
+            fontSize: 9,
+            fontWeight:
+              active
+                ? 700
+                : 600,
           }}
         >
-          {item.label}
+          {label}
         </span>
       </button>
     );
   }
 
-  const utilById =
-    Object.fromEntries(
-      data.utilities.map(
-        (utility) => [
-          utility.id,
-          utility,
-        ]
-      )
-    );
-
-  const historyLogs = [
-    ...data.logs,
-  ]
-    .sort((a, b) =>
-      (b.date || "")
-        .localeCompare(
-          a.date || ""
-        )
-    )
-    .map((log) => ({
-      ...log,
-
-      utilityName:
-        utilById[
-          log.utilityId
-        ]
-          ? utilById[
-              log.utilityId
-            ].name
-          : "Utility",
-
-      unit:
-        utilById[
-          log.utilityId
-        ]
-          ? utilById[
-              log.utilityId
-            ].unit
-          : "",
-    }));
-
-  /* ================================
-     APP UI
-  ================================ */
-
   return (
     <div
       style={{
-        background: C.bg,
         minHeight: "100vh",
-        display: "flex",
-        flexDirection:
-          "column",
+        background: C.bg,
+        color: C.ink,
+        fontFamily:
+          FONT_HEAD,
       }}
     >
       <div
         style={{
+          width: "100%",
           maxWidth: 460,
           margin: "0 auto",
-          width: "100%",
-          padding: "0 16px",
-          boxSizing:
-            "border-box",
-          flex: 1,
+          minHeight: "100vh",
+          padding:
+            "0 16px 100px",
         }}
       >
+        {/* APP HEADER */}
+
         <div
           style={{
+            paddingTop: 18,
             display: "flex",
-            justifyContent:
-              "space-between",
             alignItems:
               "center",
-            padding:
-              "18px 2px 0",
+            justifyContent:
+              "space-between",
           }}
         >
+          <div>
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 20,
+                fontWeight: 700,
+                color: C.ink,
+              }}
+            >
+              Utility Balance
+            </div>
+
+            <div
+              style={{
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 10,
+                color:
+                  C.inkFaint,
+                marginTop: 2,
+              }}
+            >
+              shared apartment
+              prepaid tracker
+            </div>
+          </div>
+
           <div
             style={{
-              fontFamily:
-                FONT_HEAD,
-              fontWeight: 700,
-              fontSize: 19,
-              color:
-                C.primaryDeep,
+              width: 39,
+              height: 39,
+              borderRadius: 14,
+              background:
+                C.primaryPale,
+              display: "flex",
+              alignItems:
+                "center",
+              justifyContent:
+                "center",
             }}
           >
-            Utility Balance
+            <Wallet
+              size={18}
+              color={
+                C.primaryDeep
+              }
+            />
           </div>
         </div>
 
-        {notice && (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems:
-                "center",
-              color: C.coral,
-              fontFamily:
-                FONT_HEAD,
-              fontWeight: 600,
-              fontSize: 12,
-              padding: "8px 0",
-            }}
-          >
-            <AlertTriangle
-              size={13}
-            />
-            {notice}
-          </div>
-        )}
+        {/* PAGE */}
 
-        {tab ===
-          "dashboard" && (
-          <Dashboard
-            data={data}
-            perUtility={
-              derived.perUtility
-            }
-            overallBalance={
-              derived.overallBalance
-            }
-            recent={
-              derived.recent
-            }
-            currency={
-              derived.currency
-            }
-          />
-        )}
-
-        {tab === "add" && (
-          <AddEntry
-            data={data}
-            currentBalances={
-              derived.currentBalances
-            }
-            onSave={addLog}
-          />
-        )}
-
-        {tab ===
-          "history" && (
-          <History
-            data={data}
-            logs={historyLogs}
-            onDelete={
-              deleteLog
-            }
-            currency={
-              derived.currency
-            }
-          />
-        )}
-
-        {tab ===
-          "insights" && (
-          <Insights
-            data={data}
-            currency={
-              derived.currency
-            }
-            monthlyCost={
-              derived.monthlyCost
-            }
-            monthlyByUtility={
-              derived.monthlyByUtility
-            }
-            fairness={
-              derived.fairness
-            }
-          />
-        )}
-
-        {tab ===
-          "settings" && (
-          <SettingsPanel
-            data={data}
-            onChange={persist}
-          />
-        )}
+        {content}
       </div>
 
-      {/* Bottom mobile navigation */}
+      {/* BOTTOM NAV */}
 
       <div
         style={{
-          position: "sticky",
+          position: "fixed",
+          left: "50%",
+          transform:
+            "translateX(-50%)",
           bottom: 0,
-          background: C.card,
-          borderTopLeftRadius:
-            26,
-          borderTopRightRadius:
-            26,
-          boxShadow:
-            "0 -4px 18px rgba(91,78,158,0.10)",
+          width: "100%",
+          maxWidth: 460,
+          background:
+            "rgba(255,255,255,0.96)",
+          backdropFilter:
+            "blur(14px)",
+          WebkitBackdropFilter:
+            "blur(14px)",
+          borderTop: `1px solid ${C.border}`,
+          display: "flex",
+          alignItems:
+            "center",
           padding:
-            "8px 10px calc(8px + env(safe-area-inset-bottom))",
-          marginTop: 20,
-          zIndex: 10,
+            "7px 8px calc(7px + env(safe-area-inset-bottom))",
+          zIndex: 50,
+          boxShadow:
+            "0 -6px 25px rgba(58,53,80,0.07)",
         }}
       >
+        <NavItem
+          id="home"
+          icon={Home}
+          label="Home"
+        />
+
+        <NavItem
+          id="history"
+          icon={ListTree}
+          label="History"
+        />
+
+        {/* CENTER ADD BUTTON */}
+
         <div
           style={{
-            maxWidth: 460,
-            margin: "0 auto",
+            flex: 1,
             display: "flex",
-            alignItems:
+            justifyContent:
               "center",
             position:
               "relative",
           }}
         >
-          {navLeft.map(
-            (item) => (
-              <NavButton
-                key={item.key}
-                item={item}
-              />
-            )
-          )}
-
-          <div
+          <button
+            type="button"
+            onClick={() =>
+              setShowAdd(
+                true
+              )
+            }
+            aria-label="Add checkpoint"
             style={{
-              width: 64,
+              width: 54,
+              height: 54,
+              borderRadius: 20,
+              border: `5px solid ${C.bg}`,
+              background:
+                C.primary,
+              color: C.white,
               display: "flex",
+              alignItems:
+                "center",
               justifyContent:
                 "center",
+              cursor: "pointer",
+              position:
+                "relative",
+              top: -15,
+              boxShadow:
+                "0 8px 20px rgba(91,78,158,0.25)",
             }}
           >
-            <button
-              onClick={() =>
-                setTab("add")
-              }
-              title="Add monthly record"
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: "50%",
-                border: `4px solid ${C.bg}`,
-                background:
-                  C.primary,
-                color: C.white,
-                display: "flex",
-                alignItems:
-                  "center",
-                justifyContent:
-                  "center",
-                cursor: "pointer",
-                marginTop: -26,
-                boxShadow:
-                  "0 4px 12px rgba(91,78,158,0.35)",
-              }}
-            >
-              <Plus size={24} />
-            </button>
-          </div>
-
-          {navRight.map(
-            (item) => (
-              <NavButton
-                key={item.key}
-                item={item}
-              />
-            )
-          )}
+            <Plus
+              size={24}
+              strokeWidth={2.5}
+            />
+          </button>
         </div>
+
+        <NavItem
+          id="insights"
+          icon={
+            BarChart2
+          }
+          label="Insights"
+        />
+
+        <NavItem
+          id="settings"
+          icon={
+            SettingsIcon
+          }
+          label="Settings"
+        />
       </div>
+
+      {/* ADD ENTRY SHEET */}
+
+      {showAdd && (
+        <AddEntry
+          data={data}
+          onSave={
+            addLog
+          }
+          onClose={() =>
+            setShowAdd(
+              false
+            )
+          }
+        />
+      )}
     </div>
   );
 }
