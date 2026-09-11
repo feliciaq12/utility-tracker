@@ -5,6 +5,8 @@ import React, {
   useCallback,
 } from "react";
 
+import { supabase } from "./supabase.js";
+
 import {
   BarChart,
   Bar,
@@ -620,7 +622,95 @@ function saveData(data) {
       STORAGE_KEY,
       JSON.stringify(data)
     );
+/* ================================
+   SUPABASE CLOUD
+================================ */
 
+const APARTMENT_EMAIL_DOMAIN =
+  "@utility.local";
+
+function apartmentIdToEmail(apartmentId) {
+  return `${apartmentId
+    .trim()
+    .toLowerCase()}${APARTMENT_EMAIL_DOMAIN}`;
+}
+
+async function loginApartment(
+  apartmentId,
+  password
+) {
+  const email =
+    apartmentIdToEmail(
+      apartmentId
+    );
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.auth.signInWithPassword(
+      {
+        email,
+        password,
+      }
+    );
+
+  if (error) {
+    throw error;
+  }
+
+  return data.user;
+}
+
+async function logoutApartment() {
+  const { error } =
+    await supabase.auth.signOut();
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function loadCloudData() {
+  const {
+    data: row,
+    error,
+  } = await supabase
+    .from("Apartments")
+    .select(
+      "data, apartment_id, updated_at"
+    )
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return row;
+}
+
+async function saveCloudData(
+  userId,
+  appData
+) {
+  const {
+    error,
+  } = await supabase
+    .from("Apartments")
+    .update({
+      data: appData,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "owner_id",
+      userId
+    );
+
+  if (error) {
+    throw error;
+  }
+}
     return true;
   } catch (error) {
     console.error(
@@ -631,7 +721,251 @@ function saveData(data) {
     return false;
   }
 }
+/* ================================
+   LOGIN SCREEN
+================================ */
 
+function LoginScreen({
+  onLogin,
+  loading,
+  error,
+}) {
+  const [apartmentId, setApartmentId] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (
+      !apartmentId.trim() ||
+      !password
+    ) {
+      return;
+    }
+
+    await onLogin(
+      apartmentId.trim(),
+      password
+    );
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: C.bg,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 22,
+        fontFamily: FONT_HEAD,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 390,
+        }}
+      >
+        {/* LOGO */}
+
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: 26,
+          }}
+        >
+          <div
+            style={{
+              width: 68,
+              height: 68,
+              borderRadius: 24,
+              background: C.primaryPale,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 14px",
+            }}
+          >
+            <Wallet
+              size={29}
+              color={C.primaryDeep}
+            />
+          </div>
+
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: C.ink,
+            }}
+          >
+            Utility Balance
+          </div>
+
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: C.inkSoft,
+            }}
+          >
+            Sign in to your shared
+            apartment utility tracker.
+          </div>
+        </div>
+
+        {/* LOGIN CARD */}
+
+        <Card
+          style={{
+            padding: 20,
+          }}
+        >
+          <form
+            onSubmit={
+              handleSubmit
+            }
+          >
+            <Field label="Apartment ID">
+              <input
+                style={
+                  inputStyle
+                }
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                placeholder="e.g. yuncui504"
+                value={
+                  apartmentId
+                }
+                onChange={(e) =>
+                  setApartmentId(
+                    e.target.value
+                  )
+                }
+              />
+            </Field>
+
+            <div
+              style={{
+                height: 12,
+              }}
+            />
+
+            <Field label="Password">
+              <input
+                style={
+                  inputStyle
+                }
+                type="password"
+                placeholder="Enter password"
+                value={
+                  password
+                }
+                onChange={(e) =>
+                  setPassword(
+                    e.target.value
+                  )
+                }
+              />
+            </Field>
+
+            {/* ERROR */}
+
+            {error && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems:
+                    "flex-start",
+                  padding: 11,
+                  marginTop: 14,
+                  borderRadius: 14,
+                  background:
+                    C.coralPale,
+                  color: C.coral,
+                  fontSize: 11,
+                  lineHeight: 1.5,
+                }}
+              >
+                <AlertTriangle
+                  size={15}
+                  style={{
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                />
+
+                <div>
+                  {error}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={
+                loading ||
+                !apartmentId.trim() ||
+                !password
+              }
+              style={{
+                width: "100%",
+                border: "none",
+                borderRadius: 17,
+                padding:
+                  "14px 16px",
+                marginTop: 18,
+                background:
+                  loading
+                    ? C.primaryPale
+                    : C.primary,
+                color:
+                  loading
+                    ? C.primaryDeep
+                    : C.white,
+                fontFamily:
+                  FONT_HEAD,
+                fontSize: 14,
+                fontWeight: 700,
+                cursor:
+                  loading
+                    ? "default"
+                    : "pointer",
+              }}
+            >
+              {loading
+                ? "Signing in..."
+                : "Sign in"}
+            </button>
+          </form>
+        </Card>
+
+        <div
+          style={{
+            textAlign: "center",
+            marginTop: 14,
+            padding:
+              "0 18px",
+            fontSize: 10,
+            lineHeight: 1.5,
+            color: C.inkFaint,
+          }}
+        >
+          Your login stays saved on
+          this device until you sign
+          out.
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ================================
    UTILITY ICON
 ================================ */
