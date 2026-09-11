@@ -270,7 +270,72 @@ function tierBreakdown(
 
   return rows;
 }
+function usageFromCost(
+  cost,
+  tiers,
+  baseline = 0
+) {
+  let remainingCost =
+    Number(cost) || 0;
 
+  if (
+    remainingCost <= 0 ||
+    !tiers ||
+    !tiers.length
+  ) {
+    return 0;
+  }
+
+  let usage = 0;
+  let cursor = baseline;
+
+  for (const tier of tiers) {
+    const cap =
+      tier.upTo === null ||
+      tier.upTo === undefined ||
+      tier.upTo === ""
+        ? Infinity
+        : Number(tier.upTo);
+
+    if (cursor >= cap) {
+      continue;
+    }
+
+    const rate =
+      Number(tier.rate || 0);
+
+    if (rate <= 0) {
+      continue;
+    }
+
+    const availableUsage =
+      cap - cursor;
+
+    const availableCost =
+      availableUsage === Infinity
+        ? Infinity
+        : availableUsage * rate;
+
+    if (
+      remainingCost <=
+      availableCost
+    ) {
+      const amount =
+        remainingCost / rate;
+
+      usage += amount;
+      remainingCost = 0;
+      break;
+    }
+
+    usage += availableUsage;
+    remainingCost -=
+      availableCost;
+    cursor += availableUsage;
+  }
+
+  return usage;
+}
 /* ================================
    DEFAULT APARTMENT DATA
 ================================ */
@@ -286,69 +351,69 @@ function defaultData() {
     ],
 
     utilities: [
+     {
+  id: "elec",
+  name: "Electricity",
+  unit: "kWh",
+  startingAnnualUsage: 0,
+
+  tiers: [
+    {
+      upTo: 2760,
+      rate: 0.5283,
+    },
+    {
+      upTo: 4800,
+      rate: 0.5783,
+    },
+    {
+      upTo: null,
+      rate: 0.8283,
+    },
+  ],
+},
       {
-        id: "elec",
-        name: "Electricity",
-        unit: "kWh",
+  id: "water",
+  name: "Tap Water",
+  unit: "m³",
+  startingAnnualUsage: 0,
 
-        tiers: [
-          {
-            upTo: 2760,
-            rate: 0.5283,
-          },
-          {
-            upTo: 4800,
-            rate: 0.5783,
-          },
-          {
-            upTo: null,
-            rate: 0.8283,
-          },
-        ],
-      },
+  tiers: [
+    {
+      upTo: 216,
+      rate: 2.91,
+    },
+    {
+      upTo: 300,
+      rate: 3.71,
+    },
+    {
+      upTo: null,
+      rate: 6.11,
+    },
+  ],
+},
+     {
+  id: "gas",
+  name: "Natural Pipe Gas",
+  unit: "m³",
+  startingAnnualUsage: 0,
 
-      {
-        id: "water",
-        name: "Tap Water",
-        unit: "m³",
-
-        tiers: [
-          {
-            upTo: 216,
-            rate: 2.91,
-          },
-          {
-            upTo: 300,
-            rate: 3.71,
-          },
-          {
-            upTo: null,
-            rate: 6.11,
-          },
-        ],
-      },
-
-      {
-        id: "gas",
-        name: "Natural Pipe Gas",
-        unit: "m³",
-
-        tiers: [
-          {
-            upTo: 400,
-            rate: 2.99,
-          },
-          {
-            upTo: 1000,
-            rate: 3.59,
-          },
-          {
-            upTo: null,
-            rate: 4.49,
-          },
-        ],
-      },
-    ],
+  tiers: [
+    {
+      upTo: 400,
+      rate: 2.99,
+    },
+    {
+      upTo: 1000,
+      rate: 3.59,
+    },
+    {
+      upTo: null,
+      rate: 4.49,
+    },
+  ],
+},
 
     logs: [],
   };
@@ -1113,14 +1178,24 @@ function AddEntry({
      YEARLY TIER BASELINE
   ================================ */
 
-  const yearBaseline =
-    useMemo(() => {
-      if (!utility) return 0;
+  const isAutoUsage =
+  utilityId === "elec" ||
+  utilityId === "water";
 
-      const year =
-        (date || "").slice(0, 4);
+const yearBaseline =
+  useMemo(() => {
+    if (!utility) return 0;
 
-      return data.logs
+    const year =
+      (date || "").slice(0, 4);
+
+    const startingUsage =
+      Number(
+        utility.startingAnnualUsage || 0
+      );
+
+    const trackedUsage =
+      data.logs
         .filter(
           (log) =>
             log.utilityId ===
@@ -1137,31 +1212,67 @@ function AddEntry({
             Number(log.usage || 0),
           0
         );
-    }, [
-      data.logs,
-      utilityId,
-      date,
-      utility,
-    ]);
 
-  const tierEstimate =
-    utility && usage
-      ? calcTierCost(
-          usage,
-          utility.tiers,
-          yearBaseline
-        )
-      : 0;
+    return (
+      startingUsage +
+      trackedUsage
+    );
+  }, [
+    data.logs,
+    utilityId,
+    date,
+    utility,
+  ]);
 
-  const tierRows =
-    utility && usage
-      ? tierBreakdown(
-          usage,
-          utility.tiers,
-          yearBaseline
-        )
-      : [];
+/* ================================
+   AUTOMATIC PHYSICAL USAGE
+================================ */
 
+const calculatedUsage =
+  isAutoUsage &&
+  impliedCost > 0 &&
+  utility
+    ? usageFromCost(
+        impliedCost,
+        utility.tiers,
+        yearBaseline
+      )
+    : null;
+
+/*
+  Electricity + water:
+  use automatically calculated usage.
+
+  Gas:
+  keep manual meter usage.
+*/
+
+const effectiveUsage =
+  isAutoUsage
+    ? calculatedUsage
+    : usage === ""
+    ? null
+    : Number(usage);
+
+const tierEstimate =
+  utility &&
+  effectiveUsage != null
+    ? calcTierCost(
+        effectiveUsage,
+        utility.tiers,
+        yearBaseline
+      )
+    : 0;
+
+const tierRows =
+  utility &&
+  effectiveUsage != null
+    ? tierBreakdown(
+        effectiveUsage,
+        utility.tiers,
+        yearBaseline
+      )
+    : [];
   /* ================================
      SAVE ENTRY
   ================================ */
@@ -1224,10 +1335,12 @@ function AddEntry({
         It can be entered manually
         if known from the utility meter.
       */
-      usage:
-        usage === ""
-          ? null
-          : Number(usage),
+      usage: effectiveUsage,
+
+usageSource:
+  isAutoUsage
+    ? "estimated"
+    : "meter",
 
       person:
         top > 0
@@ -1507,26 +1620,79 @@ function AddEntry({
         </div>
       </div>
 
-      {/* Optional physical usage */}
+    {/* Physical usage */}
 
-      <Field
-        label={`Physical usage (${utility ? utility.unit : "units"}) — optional`}
-        hint="You can leave this blank. Only enter it if you know the meter usage and want tiered-rate charts."
-      >
-        <input
-          style={inputStyle}
-          type="number"
-          min="0"
-          step="0.1"
-          value={usage}
-          onChange={(e) =>
-            setUsage(
-              e.target.value
-            )
-          }
-          placeholder="Optional"
-        />
-      </Field>
+{isAutoUsage ? (
+  <div
+    style={{
+      background: C.mintPale,
+      borderRadius: 18,
+      padding: 15,
+      marginBottom: 18,
+    }}
+  >
+    <div
+      style={{
+        fontFamily: FONT_HEAD,
+        fontSize: 11,
+        fontWeight: 700,
+        color: C.mint,
+        marginBottom: 5,
+      }}
+    >
+      Estimated physical usage
+    </div>
+
+    <div
+      style={{
+        fontFamily: FONT_MONO,
+        fontWeight: 700,
+        fontSize: 22,
+        color: C.ink,
+      }}
+    >
+      {calculatedUsage != null
+        ? `${fmtNum(
+            calculatedUsage,
+            1
+          )} ${utility.unit}`
+        : `— ${utility.unit}`}
+    </div>
+
+    <div
+      style={{
+        fontFamily: FONT_HEAD,
+        fontSize: 11,
+        color: C.inkSoft,
+        marginTop: 5,
+        lineHeight: 1.5,
+      }}
+    >
+      Calculated automatically from
+      the prepaid balance consumed
+      and your annual tier position.
+    </div>
+  </div>
+) : (
+  <Field
+    label={`Gas usage (${utility ? utility.unit : "m³"})`}
+    hint="Enter the usage from the gas meter if you want to track physical consumption."
+  >
+    <input
+      style={inputStyle}
+      type="number"
+      min="0"
+      step="0.1"
+      value={usage}
+      onChange={(e) =>
+        setUsage(
+          e.target.value
+        )
+      }
+      placeholder="e.g. 12.5"
+    />
+  </Field>
+)}
 
       {/* Tier estimate */}
 
@@ -2648,6 +2814,86 @@ function SettingsPanel({
             ) {
               return utility;
             }
+            {(utility.id === "elec" ||
+  utility.id === "water") && (
+  <div
+    style={{
+      background: C.primaryPale,
+      borderRadius: 16,
+      padding: 14,
+      marginBottom: 14,
+    }}
+  >
+    <div
+      style={{
+        fontFamily: FONT_HEAD,
+        fontWeight: 700,
+        fontSize: 12,
+        color: C.primaryDeep,
+        marginBottom: 6,
+      }}
+    >
+      Starting annual usage
+    </div>
+
+    <div
+      style={{
+        fontFamily: FONT_HEAD,
+        fontSize: 11,
+        color: C.inkSoft,
+        marginBottom: 8,
+        lineHeight: 1.5,
+      }}
+    >
+      Enter the usage already consumed earlier in
+      the same calendar year before you started
+      using this tracker.
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <input
+        style={{
+          ...inputStyle,
+          flex: 1,
+        }}
+        type="number"
+        min="0"
+        step="0.1"
+        value={
+          utility.startingAnnualUsage ?? 0
+        }
+        onChange={(e) =>
+          updateUtility(
+            utility.id,
+            {
+              startingAnnualUsage:
+                Number(
+                  e.target.value || 0
+                ),
+            }
+          )
+        }
+      />
+
+      <span
+        style={{
+          fontFamily: FONT_MONO,
+          fontSize: 12,
+          color: C.inkSoft,
+          minWidth: 42,
+        }}
+      >
+        {utility.unit}
+      </span>
+    </div>
+  </div>
+)}
 
             return {
               ...utility,
