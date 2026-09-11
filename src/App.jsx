@@ -718,16 +718,7 @@ async function saveCloudData(
     throw error;
   }
 }
-    return true;
-  } catch (error) {
-    console.error(
-      "Could not save utility data:",
-      error
-    );
 
-    return false;
-  }
-}
 /* ================================
    LOGIN SCREEN
 ================================ */
