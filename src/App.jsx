@@ -622,6 +622,13 @@ function saveData(data) {
       STORAGE_KEY,
       JSON.stringify(data)
     );
+ } catch (error) {
+    console.error(
+      "Could not save utility data.",
+      error
+    );
+  }
+}
 /* ================================
    SUPABASE CLOUD
 ================================ */
