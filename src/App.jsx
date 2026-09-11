@@ -5417,8 +5417,9 @@ function SettingsPanel({
     </div>
   );
 }
+
 /* ================================
-   MAIN APP
+   MAIN APP — CLOUD VERSION
 ================================ */
 
 export default function App() {
@@ -5431,13 +5432,282 @@ export default function App() {
   const [showAdd, setShowAdd] =
     useState(false);
 
+  const [user, setUser] =
+    useState(null);
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
+
+  const [cloudReady, setCloudReady] =
+    useState(false);
+
+  const [loginLoading, setLoginLoading] =
+    useState(false);
+
+  const [loginError, setLoginError] =
+    useState("");
+
+  const [syncStatus, setSyncStatus] =
+    useState("loading");
+
   /* ================================
-     SAVE TO LOCAL STORAGE
+     CHECK EXISTING LOGIN
   ================================ */
 
   useEffect(() => {
+    let active = true;
+
+    async function checkSession() {
+      const {
+        data: sessionData,
+      } =
+        await supabase.auth.getSession();
+
+      if (!active) return;
+
+      setUser(
+        sessionData.session?.user ||
+          null
+      );
+
+      setAuthLoading(false);
+    }
+
+    checkSession();
+
+    const {
+      data: authListener,
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          if (!active) return;
+
+          setUser(
+            session?.user || null
+          );
+        }
+      );
+
+    return () => {
+      active = false;
+
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  /* ================================
+     LOAD CLOUD DATA AFTER LOGIN
+  ================================ */
+
+  useEffect(() => {
+    if (!user) {
+      setCloudReady(false);
+      return;
+    }
+
+    let active = true;
+
+    async function fetchCloud() {
+      setCloudReady(false);
+      setSyncStatus("loading");
+
+      try {
+        const row =
+          await loadCloudData();
+
+        if (!active) return;
+
+        const cloudData =
+          row?.data &&
+          typeof row.data ===
+            "object" &&
+          Object.keys(row.data)
+            .length > 0
+            ? normalizeData(
+                row.data
+              )
+            : defaultData();
+
+        setData(cloudData);
+
+        saveData(
+          cloudData
+        );
+
+        setCloudReady(
+          true
+        );
+
+        setSyncStatus(
+          "synced"
+        );
+      } catch (error) {
+        console.error(
+          "Cloud load error:",
+          error
+        );
+
+        if (!active) {
+          return;
+        }
+
+        /*
+          If cloud loading fails,
+          keep the local browser copy.
+        */
+        setCloudReady(
+          true
+        );
+
+        setSyncStatus(
+          "offline"
+        );
+      }
+    }
+
+    fetchCloud();
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  /* ================================
+     SAVE DATA
+     LOCAL + CLOUD
+  ================================ */
+
+  useEffect(() => {
+    if (
+      !user ||
+      !cloudReady
+    ) {
+      return;
+    }
+
+    /*
+      Always keep local backup.
+    */
+
     saveData(data);
-  }, [data]);
+
+    setSyncStatus(
+      "saving"
+    );
+
+    /*
+      Small delay prevents many
+      cloud writes while editing.
+    */
+
+    const timer =
+      setTimeout(
+        async () => {
+          try {
+            await saveCloudData(
+              user.id,
+              data
+            );
+
+            setSyncStatus(
+              "synced"
+            );
+          } catch (error) {
+            console.error(
+              "Cloud save error:",
+              error
+            );
+
+            setSyncStatus(
+              "offline"
+            );
+          }
+        },
+        500
+      );
+
+    return () =>
+      clearTimeout(timer);
+  }, [
+    data,
+    user,
+    cloudReady,
+  ]);
+
+  /* ================================
+     LOGIN
+  ================================ */
+
+  const handleLogin =
+    useCallback(
+      async (
+        apartmentId,
+        password
+      ) => {
+        setLoginLoading(
+          true
+        );
+
+        setLoginError("");
+
+        try {
+          const loggedInUser =
+            await loginApartment(
+              apartmentId,
+              password
+            );
+
+          setUser(
+            loggedInUser
+          );
+        } catch (error) {
+          console.error(
+            "Login error:",
+            error
+          );
+
+          setLoginError(
+            "Apartment ID or password is incorrect."
+          );
+        } finally {
+          setLoginLoading(
+            false
+          );
+        }
+      },
+      []
+    );
+
+  /* ================================
+     LOGOUT
+  ================================ */
+
+  const handleLogout =
+    useCallback(
+      async () => {
+        try {
+          await logoutApartment();
+
+          setUser(null);
+
+          setCloudReady(
+            false
+          );
+
+          setTab("home");
+
+          setShowAdd(
+            false
+          );
+        } catch (error) {
+          console.error(
+            "Logout error:",
+            error
+          );
+        }
+      },
+      []
+    );
 
   /* ================================
      SAVE NEW CHECKPOINT
@@ -5446,13 +5716,15 @@ export default function App() {
   const addLog =
     useCallback(
       (record) => {
-        setData((prev) => ({
-          ...prev,
-          logs: [
-            ...prev.logs,
-            record,
-          ],
-        }));
+        setData(
+          (prev) => ({
+            ...prev,
+            logs: [
+              ...prev.logs,
+              record,
+            ],
+          })
+        );
       },
       []
     );
@@ -5473,14 +5745,17 @@ export default function App() {
           return;
         }
 
-        setData((prev) => ({
-          ...prev,
-          logs:
-            prev.logs.filter(
-              (log) =>
-                log.id !== id
-            ),
-        }));
+        setData(
+          (prev) => ({
+            ...prev,
+            logs:
+              prev.logs.filter(
+                (log) =>
+                  log.id !==
+                  id
+              ),
+          })
+        );
       },
       []
     );
@@ -5593,7 +5868,8 @@ export default function App() {
         (sum, row) =>
           sum +
           Number(
-            row.balance || 0
+            row.balance ||
+              0
           ),
         0
       );
@@ -5605,17 +5881,127 @@ export default function App() {
 
   const recent =
     useMemo(() => {
-      return [...data.logs]
+      return [
+        ...data.logs,
+      ]
         .sort(
           (a, b) =>
-            new Date(b.date) -
-            new Date(a.date)
+            new Date(
+              b.date
+            ) -
+            new Date(
+              a.date
+            )
         )
         .slice(0, 5);
     }, [data.logs]);
 
   /* ================================
-     SCREEN
+     INITIAL AUTH LOADING
+  ================================ */
+
+  if (authLoading) {
+    return (
+      <div
+        style={{
+          minHeight:
+            "100vh",
+          background:
+            C.bg,
+          display: "flex",
+          alignItems:
+            "center",
+          justifyContent:
+            "center",
+          fontFamily:
+            FONT_HEAD,
+          color:
+            C.inkSoft,
+          fontWeight: 700,
+        }}
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  /* ================================
+     NOT LOGGED IN
+  ================================ */
+
+  if (!user) {
+    return (
+      <LoginScreen
+        onLogin={
+          handleLogin
+        }
+        loading={
+          loginLoading
+        }
+        error={
+          loginError
+        }
+      />
+    );
+  }
+
+  /* ================================
+     WAIT FOR CLOUD
+  ================================ */
+
+  if (!cloudReady) {
+    return (
+      <div
+        style={{
+          minHeight:
+            "100vh",
+          background:
+            C.bg,
+          display: "flex",
+          flexDirection:
+            "column",
+          alignItems:
+            "center",
+          justifyContent:
+            "center",
+          gap: 10,
+          padding: 24,
+          fontFamily:
+            FONT_HEAD,
+        }}
+      >
+        <Wallet
+          size={30}
+          color={
+            C.primaryDeep
+          }
+        />
+
+        <div
+          style={{
+            fontWeight: 700,
+            color: C.ink,
+          }}
+        >
+          Loading apartment
+        </div>
+
+        <div
+          style={{
+            fontSize: 11,
+            color:
+              C.inkSoft,
+          }}
+        >
+          Getting your
+          utility data...
+        </div>
+      </div>
+    );
+  }
+
+  /* ================================
+     SCREEN CONTENT
   ================================ */
 
   let content = null;
@@ -5638,7 +6024,9 @@ export default function App() {
     );
   }
 
-  if (tab === "history") {
+  if (
+    tab === "history"
+  ) {
     content = (
       <History
         data={data}
@@ -5649,7 +6037,9 @@ export default function App() {
     );
   }
 
-  if (tab === "insights") {
+  if (
+    tab === "insights"
+  ) {
     content = (
       <Insights
         data={data}
@@ -5657,11 +6047,15 @@ export default function App() {
     );
   }
 
-  if (tab === "settings") {
+  if (
+    tab === "settings"
+  ) {
     content = (
       <SettingsPanel
         data={data}
-        setData={setData}
+        setData={
+          setData
+        }
       />
     );
   }
@@ -5731,10 +6125,38 @@ export default function App() {
     );
   }
 
+  /* ================================
+     SYNC LABEL
+  ================================ */
+
+  const syncLabel =
+    syncStatus ===
+    "saving"
+      ? "Saving..."
+      : syncStatus ===
+        "offline"
+      ? "Offline"
+      : syncStatus ===
+        "loading"
+      ? "Loading..."
+      : "Synced";
+
+  const syncColor =
+    syncStatus ===
+    "offline"
+      ? C.coral
+      : syncStatus ===
+        "saving" ||
+        syncStatus ===
+          "loading"
+      ? C.amber
+      : C.mint;
+
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight:
+          "100vh",
         background: C.bg,
         color: C.ink,
         fontFamily:
@@ -5746,7 +6168,8 @@ export default function App() {
           width: "100%",
           maxWidth: 460,
           margin: "0 auto",
-          minHeight: "100vh",
+          minHeight:
+            "100vh",
           padding:
             "0 16px 100px",
         }}
@@ -5761,6 +6184,7 @@ export default function App() {
               "center",
             justifyContent:
               "space-between",
+            gap: 12,
           }}
         >
           <div>
@@ -5778,40 +6202,64 @@ export default function App() {
 
             <div
               style={{
-                fontFamily:
-                  FONT_HEAD,
-                fontSize: 10,
-                color:
-                  C.inkFaint,
-                marginTop: 2,
+                display: "flex",
+                alignItems:
+                  "center",
+                gap: 5,
+                marginTop: 3,
               }}
             >
-              shared apartment
-              prepaid tracker
+              <div
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius:
+                    "50%",
+                  background:
+                    syncColor,
+                }}
+              />
+
+              <span
+                style={{
+                  fontFamily:
+                    FONT_HEAD,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color:
+                    syncColor,
+                }}
+              >
+                {syncLabel}
+              </span>
             </div>
           </div>
 
-          <div
+          <button
+            type="button"
+            onClick={
+              handleLogout
+            }
             style={{
-              width: 39,
-              height: 39,
-              borderRadius: 14,
+              border:
+                "none",
               background:
                 C.primaryPale,
-              display: "flex",
-              alignItems:
-                "center",
-              justifyContent:
-                "center",
+              borderRadius: 13,
+              padding:
+                "9px 11px",
+              color:
+                C.primaryDeep,
+              fontFamily:
+                FONT_HEAD,
+              fontSize: 10,
+              fontWeight: 700,
+              cursor:
+                "pointer",
             }}
           >
-            <Wallet
-              size={18}
-              color={
-                C.primaryDeep
-              }
-            />
-          </div>
+            Sign out
+          </button>
         </div>
 
         {/* PAGE */}
@@ -5823,7 +6271,8 @@ export default function App() {
 
       <div
         style={{
-          position: "fixed",
+          position:
+            "fixed",
           left: "50%",
           transform:
             "translateX(-50%)",
@@ -5858,8 +6307,6 @@ export default function App() {
           icon={ListTree}
           label="History"
         />
-
-        {/* CENTER ADD BUTTON */}
 
         <div
           style={{
@@ -5902,7 +6349,9 @@ export default function App() {
           >
             <Plus
               size={24}
-              strokeWidth={2.5}
+              strokeWidth={
+                2.5
+              }
             />
           </button>
         </div>
@@ -5924,7 +6373,7 @@ export default function App() {
         />
       </div>
 
-      {/* ADD ENTRY SHEET */}
+      {/* ADD ENTRY */}
 
       {showAdd && (
         <AddEntry
