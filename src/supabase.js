@@ -6,7 +6,19 @@ const supabaseUrl =
 const supabasePublishableKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const supabase = createClient(
-  supabaseUrl,
-  supabasePublishableKey
-);
+console.log("ENV TEST:", {
+  url: supabaseUrl,
+  key: supabasePublishableKey?.slice(0, 10),
+});
+
+if (!supabaseUrl) {
+  throw new Error(
+    "Missing VITE_SUPABASE_URL"
+  );
+}
+
+export const supabase =
+  createClient(
+    supabaseUrl,
+    supabasePublishableKey
+  );
